@@ -1,0 +1,55 @@
+{
+	"name": "cronbase",
+	"version": "0.1.0",
+	"description": "Beautiful self-hosted cron job manager with web UI",
+	"type": "module",
+	"main": "src/index.ts",
+	"bin": {
+		"cronbase": "src/cli.ts"
+	},
+	"scripts": {
+		"start": "bun run src/cli.ts start",
+		"dev": "bun run --watch src/cli.ts start",
+		"test": "bun test",
+		"check": "bunx --bun @biomejs/biome check src/ tests/",
+		"format": "bunx --bun @biomejs/biome format --write src/ tests/",
+		"docs:dev": "bunx vitepress dev docs",
+		"docs:build": "bunx vitepress build docs",
+		"docs:preview": "bunx vitepress preview docs"
+	},
+	"keywords": [
+		"cron",
+		"scheduler",
+		"job-manager",
+		"self-hosted",
+		"monitoring",
+		"automation",
+		"bun",
+		"typescript"
+	],
+	"license": "AGPL-3.0",
+	"homepage": "https://paperkite-hq.github.io/cronbase",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/paperkite-hq/cronbase"
+	},
+	"bugs": {
+		"url": "https://github.com/paperkite-hq/cronbase/issues"
+	},
+	"files": [
+		"src/**/*.ts",
+		"LICENSE",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"engines": {
+		"bun": ">=1.0.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.4.8",
+		"bun-types": "^1.3.11",
+		"vitepress": "^1.6.4"
+	}
+}

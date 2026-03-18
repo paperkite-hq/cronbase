@@ -1,0 +1,13 @@
+.git
+node_modules
+tests
+docs
+examples
+scripts
+.github
+*.md
+!README.md
+.biome.standalone.json
+docker-compose.yml
+Dockerfile
+.dockerignore

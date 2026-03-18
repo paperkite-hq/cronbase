@@ -1,0 +1,64 @@
+# Health Check Configuration
+#
+# Monitor services, APIs, and infrastructure.
+# Alerts fire on failure so you know before your users do.
+
+jobs:
+  - name: check-web-app
+    schedule: "*/5 * * * *"
+    command: >
+      STATUS=$(curl -sf -o /dev/null -w "%{http_code}" https://myapp.com/health) &&
+      echo "Status: $STATUS" &&
+      [ "$STATUS" = "200" ] || (echo "FAIL: got $STATUS" && exit 1)
+    timeout: 30
+    retry:
+      maxAttempts: 1
+      baseDelay: 10
+    description: Check web app health endpoint every 5 minutes
+    tags: [monitoring, web]
+    on_failure: https://discord.com/api/webhooks/YOUR/DISCORD/WEBHOOK
+
+  - name: check-api
+    schedule: "*/5 * * * *"
+    command: >
+      RESPONSE=$(curl -sf https://api.myapp.com/v1/status) &&
+      echo "$RESPONSE" | jq -e '.status == "ok"' > /dev/null ||
+      (echo "API unhealthy: $RESPONSE" && exit 1)
+    timeout: 30
+    retry:
+      maxAttempts: 2
+      baseDelay: 15
+    description: Verify API returns healthy status
+    tags: [monitoring, api]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+  - name: check-database
+    schedule: "*/10 * * * *"
+    command: >
+      pg_isready -h localhost -p 5432 &&
+      psql -c "SELECT 1" mydb > /dev/null &&
+      echo "Database OK"
+    timeout: 15
+    description: Verify PostgreSQL is accepting connections
+    tags: [monitoring, database]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+  - name: check-redis
+    schedule: "*/5 * * * *"
+    command: redis-cli ping | grep -q PONG && echo "Redis OK"
+    timeout: 10
+    description: Verify Redis is responding
+    tags: [monitoring, cache]
+
+  - name: check-ssl-expiry
+    schedule: "0 9 * * 1"
+    command: >
+      EXPIRY=$(echo | openssl s_client -servername myapp.com -connect myapp.com:443 2>/dev/null |
+      openssl x509 -noout -enddate | cut -d= -f2) &&
+      DAYS=$(( ($(date -d "$EXPIRY" +%s) - $(date +%s)) / 86400 )) &&
+      echo "SSL expires in $DAYS days ($EXPIRY)" &&
+      [ "$DAYS" -gt 14 ] || (echo "WARNING: SSL expires in $DAYS days!" && exit 1)
+    timeout: 30
+    description: Weekly SSL certificate expiry check (alert if < 14 days)
+    tags: [monitoring, ssl]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK

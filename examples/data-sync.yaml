@@ -1,0 +1,49 @@
+# Data Sync Configuration
+#
+# Synchronize data between servers and services.
+# Useful for backups, CDN cache warming, and data pipelines.
+
+jobs:
+  - name: sync-to-backup
+    schedule: "0 */6 * * *"
+    command: >
+      rsync -az --delete --stats /data/ backup-server:/backups/data/ 2>&1 |
+      tail -5
+    timeout: 3600
+    retry:
+      maxAttempts: 2
+      baseDelay: 120
+    description: Sync data directory to backup server every 6 hours
+    tags: [sync, backup]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+  - name: sync-s3-assets
+    schedule: "0 */2 * * *"
+    command: >
+      aws s3 sync /var/www/uploads s3://my-bucket/uploads --delete --size-only 2>&1 |
+      tail -3
+    timeout: 1800
+    description: Sync uploaded files to S3 every 2 hours
+    tags: [sync, s3, assets]
+    env:
+      AWS_REGION: us-west-2
+
+  - name: pull-remote-config
+    schedule: "*/30 * * * *"
+    command: >
+      curl -sf https://config.myapp.com/production.json -o /etc/myapp/config.json.new &&
+      mv /etc/myapp/config.json.new /etc/myapp/config.json &&
+      echo "Config updated at $(date)"
+    timeout: 30
+    description: Pull latest configuration from config service
+    tags: [sync, config]
+
+  - name: export-metrics
+    schedule: "0 * * * *"
+    command: >
+      curl -sf http://localhost:9090/api/v1/query?query=up |
+      jq '.data.result' > /var/exports/metrics-$(date +%Y%m%d-%H).json &&
+      echo "Exported metrics snapshot"
+    timeout: 60
+    description: Hourly Prometheus metrics snapshot export
+    tags: [sync, metrics]

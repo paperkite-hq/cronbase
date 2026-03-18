@@ -1,0 +1,15 @@
+services:
+  cronbase:
+    build: .
+    ports:
+      - "7433:7433"
+    volumes:
+      - cronbase-data:/data
+      # Optional: mount a config file to auto-load jobs on startup
+      # - ./cronbase.yaml:/app/cronbase.yaml
+    # Uncomment to load jobs from a config file:
+    # command: ["start", "--db", "/data/cronbase.db", "--config", "/app/cronbase.yaml"]
+    restart: unless-stopped
+
+volumes:
+  cronbase-data:

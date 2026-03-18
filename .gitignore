@@ -1,0 +1,4 @@
+.last-sync-commit
+
+# Local-only hooks
+.githooks/commit-msg
