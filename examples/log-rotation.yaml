@@ -1,0 +1,36 @@
+# Log Rotation Configuration
+#
+# Manages application log files — compress old logs,
+# delete ancient ones, and monitor disk usage.
+
+jobs:
+  - name: compress-logs
+    schedule: "0 0 * * *"
+    command: >
+      find /var/log/myapp -name '*.log' -mtime +1 -not -name '*.gz' |
+      xargs -I {} gzip {} &&
+      echo "Compressed $(find /var/log/myapp -name '*.gz' -mmin -1440 | wc -l) files"
+    timeout: 300
+    description: Compress log files older than 1 day
+    tags: [logs, maintenance]
+
+  - name: delete-old-logs
+    schedule: "0 1 * * 0"
+    command: >
+      COUNT=$(find /var/log/myapp -name '*.gz' -mtime +30 | wc -l) &&
+      find /var/log/myapp -name '*.gz' -mtime +30 -delete &&
+      echo "Deleted $COUNT log files older than 30 days"
+    timeout: 120
+    description: Delete compressed logs older than 30 days (weekly)
+    tags: [logs, maintenance]
+
+  - name: disk-usage-alert
+    schedule: "0 */4 * * *"
+    command: >
+      USAGE=$(df /var/log | tail -1 | awk '{print $5}' | tr -d '%') &&
+      echo "Disk usage: ${USAGE}%" &&
+      [ "$USAGE" -lt 85 ] || (echo "WARNING: disk usage ${USAGE}% exceeds 85%" && exit 1)
+    timeout: 30
+    description: Alert if log partition exceeds 85% usage
+    tags: [monitoring, disk]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK

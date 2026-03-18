@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" font-family="'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace" font-size="13">
+  <style>
+    @keyframes blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+    .cursor { animation: blink 1s infinite }
+    .window { fill: #1e1e2e; rx: 8; ry: 8 }
+    .titlebar { fill: #313244; rx: 8; ry: 8 }
+    .btn-close { fill: #f38ba8 }
+    .btn-min { fill: #f9e2af }
+    .btn-max { fill: #a6e3a1 }
+    .prompt { fill: #89b4fa }
+    .command { fill: #cdd6f4 }
+    .comment { fill: #6c7086 }
+    .success { fill: #a6e3a1 }
+    .info { fill: #89b4fa }
+    .warn { fill: #f9e2af }
+    .dim { fill: #585b70 }
+    .output { fill: #bac2de }
+    .highlight { fill: #f5c2e7 }
+    .url { fill: #89dceb; text-decoration: underline }
+
+    /* Line reveal animations - each line appears sequentially */
+    .line { opacity: 0 }
+    .l1  { animation: reveal 0s 0.5s forwards }
+    .l2  { animation: reveal 0s 1.8s forwards }
+    .l3  { animation: reveal 0s 2.0s forwards }
+    .l4  { animation: reveal 0s 3.5s forwards }
+    .l5  { animation: reveal 0s 3.7s forwards }
+    .l6  { animation: reveal 0s 3.9s forwards }
+    .l7  { animation: reveal 0s 5.2s forwards }
+    .l8  { animation: reveal 0s 5.4s forwards }
+    .l9  { animation: reveal 0s 5.6s forwards }
+    .l10 { animation: reveal 0s 5.8s forwards }
+    .l11 { animation: reveal 0s 6.0s forwards }
+    .l12 { animation: reveal 0s 7.5s forwards }
+    .l13 { animation: reveal 0s 7.7s forwards }
+    .l14 { animation: reveal 0s 7.9s forwards }
+    .l15 { animation: reveal 0s 8.1s forwards }
+    .l16 { animation: reveal 0s 8.3s forwards }
+    .l17 { animation: reveal 0s 8.5s forwards }
+    .l18 { animation: reveal 0s 8.7s forwards }
+    .l19 { animation: reveal 0s 10.2s forwards }
+    .l20 { animation: reveal 0s 10.4s forwards }
+    .l21 { animation: reveal 0s 10.6s forwards }
+    .l22 { animation: reveal 0s 10.8s forwards }
+    .l23 { animation: reveal 0s 11.0s forwards }
+    .l24 { animation: reveal 0s 12.5s forwards }
+    .l25 { animation: reveal 0s 12.7s forwards }
+
+    @keyframes reveal { to { opacity: 1 } }
+    @keyframes typing { from { width: 0 } to { width: 100% } }
+  </style>
+
+  <!-- Window chrome -->
+  <rect class="window" width="800" height="520"/>
+  <rect class="titlebar" width="800" height="36"/>
+  <rect class="titlebar" y="28" width="800" height="8" rx="0" ry="0"/>
+  <circle class="btn-close" cx="20" cy="18" r="6"/>
+  <circle class="btn-min" cx="40" cy="18" r="6"/>
+  <circle class="btn-max" cx="60" cy="18" r="6"/>
+  <text x="400" y="22" text-anchor="middle" fill="#cdd6f4" font-size="12">cronbase demo</text>
+
+  <g transform="translate(16, 52)">
+    <!-- Step 1: Add a job -->
+    <g class="line l1">
+      <text y="18" class="comment"># Add your first cron job</text>
+    </g>
+    <g class="line l2">
+      <text y="38" class="prompt">$ </text>
+      <text y="38" x="16" class="command">cronbase add --name "backup-db" --schedule "0 2 * * *" \</text>
+    </g>
+    <g class="line l3">
+      <text y="56" x="32" class="command">--command "pg_dump mydb > /backups/db-$(date +%Y%m%d).sql" --retries 2</text>
+    </g>
+    <g class="line l4">
+      <text y="76" class="success">+</text>
+      <text y="76" x="12" class="output"> Job </text>
+      <text y="76" x="46" class="highlight">backup-db</text>
+      <text y="76" x="120" class="output"> added (schedule: </text>
+      <text y="76" x="260" class="info">0 2 * * *</text>
+      <text y="76" x="340" class="output"> — daily at 2:00 AM)</text>
+    </g>
+
+    <!-- Step 2: Add another job -->
+    <g class="line l5">
+      <text y="106" class="prompt">$ </text>
+      <text y="106" x="16" class="command">cronbase add --name "health-check" --schedule "*/5 * * * *" \</text>
+    </g>
+    <g class="line l6">
+      <text y="124" x="32" class="command">--command "curl -sf https://myapp.com/health" --timeout 30</text>
+    </g>
+    <g class="line l7">
+      <text y="144" class="success">+</text>
+      <text y="144" x="12" class="output"> Job </text>
+      <text y="144" x="46" class="highlight">health-check</text>
+      <text y="144" x="140" class="output"> added (schedule: </text>
+      <text y="144" x="280" class="info">*/5 * * * *</text>
+      <text y="144" x="370" class="output"> — every 5 min)</text>
+    </g>
+
+    <!-- Step 3: List jobs -->
+    <g class="line l8">
+      <text y="174" class="prompt">$ </text>
+      <text y="174" x="16" class="command">cronbase list</text>
+    </g>
+    <g class="line l9">
+      <text y="194" class="dim">  ID  NAME            SCHEDULE        NEXT RUN             STATUS</text>
+    </g>
+    <g class="line l10">
+      <text y="212" class="output">   1  backup-db       0 2 * * *      2025-01-16 02:00     </text>
+      <text y="212" x="440" class="success">enabled</text>
+    </g>
+    <g class="line l11">
+      <text y="230" class="output">   2  health-check    */5 * * * *    2025-01-15 14:35     </text>
+      <text y="230" x="440" class="success">enabled</text>
+    </g>
+
+    <!-- Step 4: Start scheduler -->
+    <g class="line l12">
+      <text y="260" class="comment"># Start the scheduler + web dashboard</text>
+    </g>
+    <g class="line l13">
+      <text y="280" class="prompt">$ </text>
+      <text y="280" x="16" class="command">cronbase start</text>
+    </g>
+    <g class="line l14">
+      <text y="300" class="info">i</text>
+      <text y="300" x="12" class="output"> cronbase v0.1.0 started</text>
+    </g>
+    <g class="line l15">
+      <text y="318" class="info">i</text>
+      <text y="318" x="12" class="output"> Loaded </text>
+      <text y="318" x="68" class="highlight">2 jobs</text>
+      <text y="318" x="116" class="output"> from database</text>
+    </g>
+    <g class="line l16">
+      <text y="336" class="info">i</text>
+      <text y="336" x="12" class="output"> Web dashboard: </text>
+      <text y="336" x="140" class="url">http://localhost:7433</text>
+    </g>
+    <g class="line l17">
+      <text y="354" class="info">i</text>
+      <text y="354" x="12" class="output"> Scheduler running — press Ctrl+C to stop</text>
+    </g>
+
+    <!-- Step 5: Job executes -->
+    <g class="line l18">
+      <text y="384" class="dim">─────────────────────────────────────────</text>
+    </g>
+    <g class="line l19">
+      <text y="404" class="warn">▶</text>
+      <text y="404" x="14" class="output"> [14:35:00] Running </text>
+      <text y="404" x="168" class="highlight">health-check</text>
+    </g>
+    <g class="line l20">
+      <text y="422" class="success">&#10003;</text>
+      <text y="422" x="14" class="output"> [14:35:01] </text>
+      <text y="422" x="102" class="highlight">health-check</text>
+      <text y="422" x="200" class="success"> succeeded</text>
+      <text y="422" x="282" class="dim"> (1.2s, exit 0)</text>
+    </g>
+    <g class="line l21">
+      <text y="442" class="warn">▶</text>
+      <text y="442" x="14" class="output"> [14:40:00] Running </text>
+      <text y="442" x="168" class="highlight">health-check</text>
+    </g>
+    <g class="line l22">
+      <text y="460" class="success">&#10003;</text>
+      <text y="460" x="14" class="output"> [14:40:00] </text>
+      <text y="460" x="102" class="highlight">health-check</text>
+      <text y="460" x="200" class="success"> succeeded</text>
+      <text y="460" x="282" class="dim"> (0.8s, exit 0)</text>
+    </g>
+
+    <!-- Blinking cursor -->
+    <g class="line l23">
+      <rect class="cursor" y="468" width="8" height="16" fill="#cdd6f4"/>
+    </g>
+  </g>
+</svg>

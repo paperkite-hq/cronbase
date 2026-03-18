@@ -1,0 +1,57 @@
+# System Maintenance Configuration
+#
+# Routine system maintenance tasks — temp file cleanup,
+# package updates, certificate renewal, and cache management.
+
+jobs:
+  - name: clean-tmp
+    schedule: "0 3 * * *"
+    command: >
+      COUNT=$(find /tmp -type f -atime +7 | wc -l) &&
+      find /tmp -type f -atime +7 -delete 2>/dev/null;
+      echo "Cleaned $COUNT temp files"
+    timeout: 120
+    description: Remove temp files not accessed in 7 days
+    tags: [maintenance, cleanup]
+
+  - name: renew-certs
+    schedule: "0 4 1,15 * *"
+    command: >
+      certbot renew --quiet --deploy-hook "systemctl reload nginx" 2>&1 &&
+      echo "Certificate renewal check complete"
+    timeout: 300
+    retry:
+      maxAttempts: 1
+    description: Attempt Let's Encrypt certificate renewal (1st and 15th)
+    tags: [maintenance, ssl]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+  - name: docker-cleanup
+    schedule: "0 5 * * 0"
+    command: >
+      docker system prune -f --volumes 2>&1 |
+      tail -3
+    timeout: 300
+    description: Weekly Docker cleanup (unused images, volumes, networks)
+    tags: [maintenance, docker]
+
+  - name: update-geoip
+    schedule: "0 6 * * 3"
+    command: >
+      curl -sf https://download.db-ip.com/free/dbip-country-lite-$(date +%Y-%m).mmdb.gz |
+      gunzip > /usr/share/GeoIP/dbip-country-lite.mmdb &&
+      echo "GeoIP database updated"
+    timeout: 120
+    description: Weekly GeoIP database update (Wednesday)
+    tags: [maintenance, geoip]
+
+  - name: vacuum-sqlite
+    schedule: "0 2 * * 0"
+    command: >
+      for db in /data/*.db; do
+        sqlite3 "$db" "VACUUM; ANALYZE;" &&
+        echo "Vacuumed: $db ($(du -h "$db" | cut -f1))"
+      done
+    timeout: 300
+    description: Weekly SQLite database maintenance
+    tags: [maintenance, database]

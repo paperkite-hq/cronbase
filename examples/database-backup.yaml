@@ -1,0 +1,36 @@
+# Database Backup Configuration
+#
+# Backs up PostgreSQL databases on a schedule with failure alerts.
+# Keeps 7 daily backups, removes older ones automatically.
+
+jobs:
+  - name: backup-postgres
+    schedule: "0 2 * * *"
+    command: >
+      pg_dump -Fc mydb > /backups/mydb-$(date +%Y%m%d-%H%M%S).dump &&
+      echo "Backup completed: $(du -h /backups/mydb-*.dump | tail -1)"
+    timeout: 600
+    retry:
+      maxAttempts: 2
+      baseDelay: 60
+    description: Nightly PostgreSQL backup with custom format
+    tags: [database, backup, critical]
+    on_failure: https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK
+
+  - name: backup-mysql
+    schedule: "0 3 * * *"
+    command: >
+      mysqldump --single-transaction --routines --triggers mydb |
+      gzip > /backups/mydb-$(date +%Y%m%d).sql.gz
+    timeout: 600
+    retry:
+      maxAttempts: 1
+    description: Nightly MySQL backup (compressed)
+    tags: [database, backup]
+
+  - name: cleanup-old-backups
+    schedule: "0 4 * * *"
+    command: find /backups -name '*.dump' -o -name '*.sql.gz' | sort | head -n -7 | xargs rm -f
+    timeout: 60
+    description: Keep only the 7 most recent backups
+    tags: [database, maintenance]
