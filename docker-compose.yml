@@ -9,6 +9,12 @@ services:
       # - ./cronbase.yaml:/app/cronbase.yaml
     # Uncomment to load jobs from a config file:
     # command: ["start", "--db", "/data/cronbase.db", "--config", "/app/cronbase.yaml"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7433/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
 volumes:
