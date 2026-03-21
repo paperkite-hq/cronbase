@@ -47,7 +47,7 @@ cronbase reads these security-relevant environment variables:
 If you discover a security vulnerability, please report it responsibly:
 
 1. **Do not** open a public GitHub issue
-2. Email: security@paperkite.dev
+2. Email: hailey+security@paperkite.sh
 3. Include a description, reproduction steps, and potential impact
 
 We aim to respond within 48 hours and will credit reporters in the fix release notes.
