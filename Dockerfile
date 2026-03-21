@@ -14,8 +14,8 @@ COPY tsconfig.json ./
 RUN addgroup -S cronbase && adduser -S cronbase -G cronbase
 
 # Data volume for SQLite database
+RUN mkdir -p /data && chown cronbase:cronbase /data
 VOLUME /data
-RUN chown cronbase:cronbase /data
 
 # Default port
 EXPOSE 7433
