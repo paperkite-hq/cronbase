@@ -9,12 +9,12 @@ docker run -d \
   --name cronbase \
   -p 7433:7433 \
   -v cronbase-data:/data \
-  cronbase
+  ghcr.io/paperkite-hq/cronbase
 ```
 
 The dashboard is available at `http://localhost:7433`.
 
-## Build the image
+## Build from source
 
 ```bash
 git clone https://github.com/paperkite-hq/cronbase.git
@@ -32,7 +32,7 @@ docker run -d \
   -p 7433:7433 \
   -v cronbase-data:/data \
   -v ./cronbase.yaml:/app/cronbase.yaml \
-  cronbase start --db /data/cronbase.db --config /app/cronbase.yaml
+  ghcr.io/paperkite-hq/cronbase start --db /data/cronbase.db --config /app/cronbase.yaml
 ```
 
 ## Docker Compose
@@ -40,7 +40,7 @@ docker run -d \
 ```yaml
 services:
   cronbase:
-    build: .
+    image: ghcr.io/paperkite-hq/cronbase
     ports:
       - "7433:7433"
     volumes:

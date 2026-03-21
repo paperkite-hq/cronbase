@@ -131,7 +131,7 @@ docker run -d \
   --name cronbase \
   -p 7433:7433 \
   -v cronbase-data:/data \
-  cronbase
+  ghcr.io/paperkite-hq/cronbase
 ```
 
 Or with Docker Compose:
@@ -447,7 +447,13 @@ jobs:
 
 ## Docker
 
-### Build and run
+### Pre-built image
+
+```bash
+docker run -d --name cronbase -p 7433:7433 -v cronbase-data:/data ghcr.io/paperkite-hq/cronbase
+```
+
+### Build from source
 
 ```bash
 docker build -t cronbase .
@@ -461,7 +467,7 @@ docker run -d --name cronbase \
   -p 7433:7433 \
   -v cronbase-data:/data \
   -v ./cronbase.yaml:/app/cronbase.yaml \
-  cronbase start --db /data/cronbase.db --config /app/cronbase.yaml
+  ghcr.io/paperkite-hq/cronbase start --db /data/cronbase.db --config /app/cronbase.yaml
 ```
 
 ### Docker Compose
@@ -469,7 +475,7 @@ docker run -d --name cronbase \
 ```yaml
 services:
   cronbase:
-    build: .
+    image: ghcr.io/paperkite-hq/cronbase
     ports:
       - "7433:7433"
     volumes:

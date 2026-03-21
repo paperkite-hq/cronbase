@@ -23,7 +23,7 @@ docker run -d \
   --name cronbase \
   -p 7433:7433 \
   -v cronbase-data:/data \
-  cronbase
+  ghcr.io/paperkite-hq/cronbase
 ```
 
 ## Add your first job

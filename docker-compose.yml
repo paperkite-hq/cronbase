@@ -1,6 +1,8 @@
 services:
   cronbase:
-    build: .
+    image: ghcr.io/paperkite-hq/cronbase
+    # Or build from source:
+    # build: .
     ports:
       - "7433:7433"
     volumes:
