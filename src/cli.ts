@@ -119,21 +119,21 @@ export function parseArgs(args: string[]): {
 	return { command, flags, positional };
 }
 
-function formatDate(iso: string | null): string {
+export function formatDate(iso: string | null): string {
 	if (!iso) return "—";
 	// Handle both ISO 8601 (with T) and SQLite datetime format (with space)
 	const d = new Date(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`);
 	return d.toLocaleString();
 }
 
-function formatDuration(ms: number | null): string {
+export function formatDuration(ms: number | null): string {
 	if (ms == null) return "—";
 	if (ms < 1000) return `${ms}ms`;
 	if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
 	return `${(ms / 60000).toFixed(1)}m`;
 }
 
-function statusIcon(status: string | null): string {
+export function statusIcon(status: string | null): string {
 	switch (status) {
 		case "success":
 			return "✓";
@@ -154,7 +154,7 @@ function statusIcon(status: string | null): string {
  * Parse a crontab line into a schedule and command.
  * Skips comments, empty lines, and variable assignments (VAR=value).
  */
-function parseCrontabLine(line: string): { schedule: string; command: string } | null {
+export function parseCrontabLine(line: string): { schedule: string; command: string } | null {
 	const trimmed = line.trim();
 	if (!trimmed || trimmed.startsWith("#")) return null;
 	if (/^[A-Z_]+=/.test(trimmed)) return null;

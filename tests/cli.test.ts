@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseArgs } from "../src/cli";
+import { formatDate, formatDuration, parseArgs, parseCrontabLine, statusIcon } from "../src/cli";
 
 const CLI = join(import.meta.dir, "../src/cli.ts");
 
@@ -85,6 +85,119 @@ describe("parseArgs", () => {
 	test("defaults to help when no args", () => {
 		const result = parseArgs([]);
 		expect(result.command).toBe("help");
+	});
+});
+
+describe("formatDate", () => {
+	test("returns dash for null", () => {
+		expect(formatDate(null)).toBe("—");
+	});
+
+	test("handles ISO 8601 format", () => {
+		const result = formatDate("2026-03-20T10:30:00Z");
+		// Should produce a locale string (exact format varies by env)
+		expect(result).toBeTruthy();
+		expect(result).not.toBe("—");
+	});
+
+	test("handles SQLite datetime format (space separator)", () => {
+		const result = formatDate("2026-03-20 10:30:00");
+		expect(result).toBeTruthy();
+		expect(result).not.toBe("—");
+	});
+});
+
+describe("formatDuration", () => {
+	test("returns dash for null", () => {
+		expect(formatDuration(null)).toBe("—");
+	});
+
+	test("returns dash for undefined", () => {
+		expect(formatDuration(undefined as unknown as null)).toBe("—");
+	});
+
+	test("formats milliseconds", () => {
+		expect(formatDuration(500)).toBe("500ms");
+		expect(formatDuration(0)).toBe("0ms");
+		expect(formatDuration(999)).toBe("999ms");
+	});
+
+	test("formats seconds", () => {
+		expect(formatDuration(1000)).toBe("1.0s");
+		expect(formatDuration(5500)).toBe("5.5s");
+		expect(formatDuration(59999)).toBe("60.0s");
+	});
+
+	test("formats minutes", () => {
+		expect(formatDuration(60000)).toBe("1.0m");
+		expect(formatDuration(90000)).toBe("1.5m");
+		expect(formatDuration(3600000)).toBe("60.0m");
+	});
+});
+
+describe("statusIcon", () => {
+	test("returns correct icons for each status", () => {
+		expect(statusIcon("success")).toBe("✓");
+		expect(statusIcon("failed")).toBe("✗");
+		expect(statusIcon("timeout")).toBe("⏱");
+		expect(statusIcon("running")).toBe("▶");
+		expect(statusIcon("skipped")).toBe("⏭");
+	});
+
+	test("returns dash for null", () => {
+		expect(statusIcon(null)).toBe("—");
+	});
+
+	test("returns dash for unknown status", () => {
+		expect(statusIcon("unknown")).toBe("—");
+		expect(statusIcon("")).toBe("—");
+	});
+});
+
+describe("parseCrontabLine", () => {
+	test("parses standard 5-field cron entry", () => {
+		const result = parseCrontabLine("0 2 * * * /usr/bin/backup.sh");
+		expect(result).toEqual({ schedule: "0 2 * * *", command: "/usr/bin/backup.sh" });
+	});
+
+	test("parses entry with multi-word command", () => {
+		const result = parseCrontabLine("*/5 * * * * curl -sf http://localhost/health");
+		expect(result).toEqual({
+			schedule: "*/5 * * * *",
+			command: "curl -sf http://localhost/health",
+		});
+	});
+
+	test("parses @preset entries", () => {
+		expect(parseCrontabLine("@daily /usr/bin/cleanup")).toEqual({
+			schedule: "@daily",
+			command: "/usr/bin/cleanup",
+		});
+		expect(parseCrontabLine("@hourly script.sh --flag")).toEqual({
+			schedule: "@hourly",
+			command: "script.sh --flag",
+		});
+	});
+
+	test("skips empty lines", () => {
+		expect(parseCrontabLine("")).toBeNull();
+		expect(parseCrontabLine("   ")).toBeNull();
+	});
+
+	test("skips comments", () => {
+		expect(parseCrontabLine("# this is a comment")).toBeNull();
+		expect(parseCrontabLine("  # indented comment")).toBeNull();
+	});
+
+	test("skips variable assignments", () => {
+		expect(parseCrontabLine("SHELL=/bin/bash")).toBeNull();
+		expect(parseCrontabLine("PATH=/usr/local/bin:/usr/bin")).toBeNull();
+		expect(parseCrontabLine("MAILTO=admin@example.com")).toBeNull();
+	});
+
+	test("returns null for lines with too few fields", () => {
+		expect(parseCrontabLine("0 2 * *")).toBeNull();
+		expect(parseCrontabLine("just-a-word")).toBeNull();
 	});
 });
 
