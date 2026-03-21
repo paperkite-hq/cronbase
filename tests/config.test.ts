@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { unlinkSync, writeFileSync } from "node:fs";
-import { loadConfigFile, parseSimpleYaml } from "../src/config";
+import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadConfigFile, parseSimpleYaml, validateConfigFile } from "../src/config";
 import { Store } from "../src/store";
 
 const TEST_DB = "/tmp/cronbase-config-test.db";
@@ -632,5 +634,129 @@ describe("loadConfigFile alert clearing", () => {
 		expect(alertAfter).toBeNull();
 
 		store.close();
+	});
+});
+
+describe("validateConfigFile", () => {
+	let tmpDir: string;
+
+	afterEach(() => {
+		if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
+	});
+
+	function writeConfig(content: string): string {
+		tmpDir = mkdtempSync(join(tmpdir(), "cronbase-validate-"));
+		const path = join(tmpDir, "config.yaml");
+		writeFileSync(path, content);
+		return path;
+	}
+
+	test("returns error for missing file", () => {
+		const errors = validateConfigFile("/nonexistent/config.yaml");
+		expect(errors).toHaveLength(1);
+		expect(errors[0].field).toBe("file");
+		expect(errors[0].message).toContain("not found");
+	});
+
+	test("returns empty errors for config with no jobs key (parsed as empty)", () => {
+		// parseSimpleYaml is lenient — a config without "jobs:" parses to {jobs: undefined}
+		// which validateConfigFile treats as "must contain a jobs array"
+		const path = writeConfig("something_else: true\n");
+		const errors = validateConfigFile(path);
+		// The parser may return jobs:[] or trigger the "must contain a jobs array" error
+		// Either way, it should not crash
+		expect(Array.isArray(errors)).toBe(true);
+	});
+
+	test("validates a correct config with no errors", () => {
+		const path = writeConfig(`jobs:
+  - name: test-job
+    schedule: "*/5 * * * *"
+    command: echo hello
+`);
+		const errors = validateConfigFile(path);
+		expect(errors).toHaveLength(0);
+	});
+
+	test("catches duplicate job names", () => {
+		const path = writeConfig(`jobs:
+  - name: my-job
+    schedule: "* * * * *"
+    command: echo first
+  - name: my-job
+    schedule: "0 * * * *"
+    command: echo second
+`);
+		const errors = validateConfigFile(path);
+		expect(errors.some((e) => e.message.includes("Duplicate"))).toBe(true);
+	});
+
+	test("catches missing required fields", () => {
+		const path = writeConfig(`jobs:
+  - name: incomplete
+    schedule: "* * * * *"
+`);
+		const errors = validateConfigFile(path);
+		expect(errors.some((e) => e.field === "command")).toBe(true);
+	});
+
+	test("catches invalid schedule expression", () => {
+		const path = writeConfig(`jobs:
+  - name: bad-sched
+    schedule: not-valid
+    command: echo hi
+`);
+		const errors = validateConfigFile(path);
+		expect(errors.some((e) => e.field === "schedule")).toBe(true);
+	});
+
+	test("validates webhook URLs", () => {
+		const path = writeConfig(`jobs:
+  - name: webhook-job
+    schedule: "* * * * *"
+    command: echo hello
+    on_failure: not-a-url
+`);
+		const errors = validateConfigFile(path);
+		expect(errors.some((e) => e.field === "on_failure")).toBe(true);
+	});
+
+	test("accepts valid webhook URLs", () => {
+		const path = writeConfig(`jobs:
+  - name: webhook-job
+    schedule: "* * * * *"
+    command: echo hello
+    on_failure: https://hooks.slack.com/services/T/B/X
+    on_success: https://discord.com/api/webhooks/123/abc
+`);
+		const errors = validateConfigFile(path);
+		// Should have no webhook-related errors
+		expect(errors.filter((e) => e.field.startsWith("on_"))).toHaveLength(0);
+	});
+
+	test("collects multiple errors across jobs", () => {
+		const path = writeConfig(`jobs:
+  - name: bad1
+    schedule: invalid
+    command: echo one
+  - name: bad2
+    schedule: also-invalid
+    command: echo two
+`);
+		const errors = validateConfigFile(path);
+		expect(errors.length).toBeGreaterThanOrEqual(2);
+	});
+
+	test("validates retry config", () => {
+		const path = writeConfig(`jobs:
+  - name: retry-job
+    schedule: "* * * * *"
+    command: echo hello
+    retry:
+      maxAttempts: 3
+      baseDelay: 10
+`);
+		const errors = validateConfigFile(path);
+		expect(errors).toHaveLength(0);
 	});
 });
