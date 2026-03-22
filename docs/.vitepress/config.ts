@@ -19,6 +19,7 @@ export default defineConfig({
 					{ text: "Alerting", link: "/guide/alerting" },
 					{ text: "Docker", link: "/guide/docker" },
 					{ text: "Migration from crontab", link: "/guide/migration" },
+					{ text: "Comparison", link: "/guide/comparison" },
 					{ text: "Examples", link: "/guide/examples" },
 				],
 			},
