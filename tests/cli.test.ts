@@ -753,6 +753,151 @@ describe("CLI commands", () => {
 	});
 });
 
+describe("--json output", () => {
+	let tmpDir: string;
+
+	afterEach(() => {
+		if (tmpDir && existsSync(tmpDir)) {
+			rmSync(tmpDir, { recursive: true });
+		}
+	});
+
+	function freshDb(): string {
+		tmpDir = mkdtempSync(join(tmpdir(), "cronbase-json-test-"));
+		return join(tmpDir, "test.db");
+	}
+
+	async function addTestJob(db: string, name = "test-job") {
+		await runCli([
+			"add",
+			"--name",
+			name,
+			"--schedule",
+			"*/5 * * * *",
+			"--command",
+			"echo hello",
+			"--description",
+			"A test job",
+			"--db",
+			db,
+		]);
+	}
+
+	test("list --json outputs valid JSON array", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		const { stdout, exitCode } = await runCli(["list", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(Array.isArray(data)).toBe(true);
+		expect(data.length).toBe(1);
+		expect(data[0].name).toBe("test-job");
+		expect(data[0].schedule).toBe("*/5 * * * *");
+		expect(data[0].command).toBe("echo hello");
+		expect(data[0].description).toBe("A test job");
+		expect(typeof data[0].id).toBe("number");
+		expect(typeof data[0].enabled).toBe("boolean");
+	});
+
+	test("list --json with empty db outputs empty array", async () => {
+		const db = freshDb();
+		const { stdout, exitCode } = await runCli(["list", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data).toEqual([]);
+	});
+
+	test("list --output json works the same as --json", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		const { stdout, exitCode } = await runCli(["list", "--output", "json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data.length).toBe(1);
+		expect(data[0].name).toBe("test-job");
+	});
+
+	test("history --json outputs valid JSON array", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		await runCli(["run", "test-job", "--db", db]);
+		const { stdout, exitCode } = await runCli(["history", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(Array.isArray(data)).toBe(true);
+		expect(data.length).toBe(1);
+		expect(data[0].jobName).toBe("test-job");
+		expect(data[0].status).toBe("success");
+		expect(typeof data[0].durationMs).toBe("number");
+		expect(data[0].exitCode).toBe(0);
+	});
+
+	test("history --json with empty db outputs empty array", async () => {
+		const db = freshDb();
+		const { stdout, exitCode } = await runCli(["history", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data).toEqual([]);
+	});
+
+	test("stats --json outputs valid JSON object", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		await runCli(["run", "test-job", "--db", db]);
+		const { stdout, exitCode } = await runCli(["stats", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data.totalJobs).toBe(1);
+		expect(data.enabledJobs).toBe(1);
+		expect(data.recentSuccesses).toBe(1);
+		expect(data.recentFailures).toBe(0);
+		expect(data.successRate).toBe(100);
+	});
+
+	test("stats --json with no executions has null successRate", async () => {
+		const db = freshDb();
+		const { stdout, exitCode } = await runCli(["stats", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data.totalJobs).toBe(0);
+		expect(data.successRate).toBeNull();
+	});
+
+	test("run --json outputs execution result", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		const { stdout, exitCode } = await runCli(["run", "test-job", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data.status).toBe("success");
+		expect(data.exitCode).toBe(0);
+		expect(typeof data.durationMs).toBe("number");
+		expect(data.stdout).toContain("hello");
+	});
+
+	test("export --json outputs JSON config", async () => {
+		const db = freshDb();
+		await addTestJob(db);
+		const { stdout, exitCode } = await runCli(["export", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data.jobs).toBeDefined();
+		expect(data.jobs.length).toBe(1);
+		expect(data.jobs[0].name).toBe("test-job");
+		expect(data.jobs[0].schedule).toBe("*/5 * * * *");
+		expect(data.jobs[0].command).toBe("echo hello");
+		expect(data.jobs[0].description).toBe("A test job");
+	});
+
+	test("export --json with empty db outputs empty jobs array", async () => {
+		const db = freshDb();
+		const { stdout, exitCode } = await runCli(["export", "--json", "--db", db]);
+		expect(exitCode).toBe(0);
+		const data = JSON.parse(stdout);
+		expect(data).toEqual({ jobs: [] });
+	});
+});
+
 describe("validate", () => {
 	test("validates a valid config file", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "cronbase-validate-test-"));

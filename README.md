@@ -248,6 +248,9 @@ cronbase validate [--path cronbase.yaml]            Validate config file (no DB 
 cronbase import [--dry-run]                         Import jobs from system crontab
 cronbase export                                     Export jobs as YAML config
 cronbase prune [--days 90]                          Prune old execution history
+
+Global flags:
+  --json                 Output in JSON format (list, history, stats, run, export)
 ```
 
 <details>
