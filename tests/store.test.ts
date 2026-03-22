@@ -552,6 +552,16 @@ describe("updateJob null nextRun recovery", () => {
 	});
 });
 
+describe("Store - closed property", () => {
+	test("closed is false before close, true after", () => {
+		expect(store.closed).toBe(false);
+		store.close();
+		expect(store.closed).toBe(true);
+		// Re-create store for afterEach cleanup
+		store = new Store(TEST_DB);
+	});
+});
+
 describe("health info", () => {
 	test("includes version from types.ts", () => {
 		const { VERSION } = require("../src/types");
