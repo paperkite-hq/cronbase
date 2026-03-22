@@ -13,6 +13,7 @@
   <a href="#api-reference">API</a> &bull;
   <a href="#alerting">Alerting</a> &bull;
   <a href="#docker">Docker</a> &bull;
+  <a href="#security">Security</a> &bull;
   <a href="#example-configurations">Examples</a>
 </p>
 
@@ -199,6 +200,7 @@ cronbase start --config cronbase.yaml    # load on startup
 | Variable | Default | Description |
 |---|---|---|
 | `CRONBASE_DB` | `./cronbase.db` | SQLite database path |
+| `CRONBASE_API_TOKEN` | *(none)* | Bearer token for API and dashboard authentication ([details](#security)) |
 
 ### Cron expressions
 
@@ -495,6 +497,55 @@ The Docker image includes a built-in health check against `/health`. You can als
 ```bash
 curl http://localhost:7433/health
 ```
+
+## Security
+
+cronbase supports token-based authentication for both the API and web dashboard via the `CRONBASE_API_TOKEN` environment variable.
+
+### Setting up authentication
+
+Set the `CRONBASE_API_TOKEN` environment variable before starting cronbase:
+
+```bash
+export CRONBASE_API_TOKEN="your-secret-token"
+cronbase start
+```
+
+With Docker:
+
+```bash
+docker run -d --name cronbase \
+  -p 7433:7433 \
+  -e CRONBASE_API_TOKEN="your-secret-token" \
+  -v cronbase-data:/data \
+  ghcr.io/paperkite-hq/cronbase
+```
+
+When a token is configured:
+
+- **API routes** (`/api/*`) require a `Bearer` token in the `Authorization` header:
+  ```bash
+  curl -H "Authorization: Bearer your-secret-token" http://localhost:7433/api/jobs
+  ```
+- **Dashboard** access requires a `?token=` query parameter:
+  ```
+  http://localhost:7433/?token=your-secret-token
+  ```
+- **`/health`** remains unauthenticated — safe for Docker health checks and external monitoring.
+- **CORS** — when authentication is enabled, the wildcard `Access-Control-Allow-Origin: *` header is omitted to prevent cross-origin exploitation. CORS preflight (`OPTIONS`) requests are always allowed.
+
+### Non-localhost warning
+
+If you bind cronbase to a non-localhost address (e.g., `--host 0.0.0.0`) without setting `CRONBASE_API_TOKEN`, cronbase will log a warning:
+
+> WARNING: No API token set and server is network-accessible. Set CRONBASE_API_TOKEN or bind to 127.0.0.1 to prevent unauthorized access.
+
+### Best practices
+
+- **Always set `CRONBASE_API_TOKEN`** when exposing cronbase beyond localhost.
+- **Use a reverse proxy** (nginx, Caddy, Traefik) with TLS termination in front of cronbase for production deployments.
+- **Generate strong tokens** — e.g., `openssl rand -hex 32`.
+- Token comparison uses constant-time algorithms to prevent timing attacks.
 
 ## Comparison
 
