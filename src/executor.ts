@@ -160,9 +160,25 @@ export async function executeJob(job: Job, store: Store): Promise<ExecutionResul
 			await new Promise((resolve) => setTimeout(resolve, delay));
 		}
 
+		// If the store was closed during shutdown, abort silently — the execution
+		// result cannot be persisted and that is expected during graceful shutdown.
+		if (store.closed)
+			return (
+				lastResult ?? {
+					status: "failed",
+					exitCode: null,
+					stdout: "",
+					stderr: "Store closed during shutdown",
+					durationMs: 0,
+				}
+			);
+
 		const execId = store.startExecution(job.id, job.name, attempt);
 		lastExecId = execId;
 		const result = await runCommand(job);
+
+		// Guard against store being closed while the command was running
+		if (store.closed) return result;
 
 		store.finishExecution(
 			execId,
@@ -205,6 +221,7 @@ export async function executeJob(job: Job, store: Store): Promise<ExecutionResul
 	// (not re-querying by jobId, which could return a different job's execution
 	// in concurrent scenarios)
 	const finalResult = lastResult as ExecutionResult;
+	if (store.closed) return finalResult;
 	store.updateJobAfterExecution(job.id, finalResult.status);
 	const lastExec = store.getExecutionById(lastExecId);
 	if (lastExec) {

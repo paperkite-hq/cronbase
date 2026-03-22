@@ -457,7 +457,15 @@ export class Store {
 		};
 	}
 
+	private _closed = false;
+
+	/** Returns true if the database has been closed. */
+	get closed(): boolean {
+		return this._closed;
+	}
+
 	close(): void {
+		this._closed = true;
 		this.db.close();
 	}
 
