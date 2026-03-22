@@ -147,6 +147,35 @@ $ cronbase validate --path bad-config.yaml
 1 error found in bad-config.yaml
 ```
 
+## Global flags
+
+### `--json`
+
+Output in JSON format instead of the default human-readable table. Supported by: `list`, `history`, `stats`, `run`, `export`.
+
+```bash
+cronbase list --json
+cronbase history --json --job backup-db
+cronbase stats --json
+cronbase run my-job --json
+cronbase export --json
+```
+
+This is useful for piping into `jq`, scripting, and integration with monitoring tools:
+
+```bash
+# Get the name of all failing jobs in the last 24h
+cronbase history --json | jq -r '.[] | select(.status == "failed") | .jobName'
+
+# Check if success rate is above threshold
+cronbase stats --json | jq '.successRate > 95'
+
+# Export as JSON config
+cronbase export --json > cronbase.json
+```
+
+Alternatively, use `--output json` for the same effect.
+
 ## Environment variables
 
 | Variable | Default | Description |

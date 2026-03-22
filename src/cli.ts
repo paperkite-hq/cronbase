@@ -45,6 +45,9 @@ Usage:
   cronbase import [--dry-run]                            Import jobs from system crontab
   cronbase export                                        Export jobs as YAML config
 
+Global options:
+  --json                 Output in JSON format (list, history, stats, run, export)
+
 Options for 'add':
   --name <name>          Job name (required, must be unique)
   --schedule <cron>      Cron expression or preset (required)
@@ -82,6 +85,7 @@ const VALUE_FLAGS = new Set([
 	"limit",
 	"days",
 	"path",
+	"output",
 ]);
 
 export function parseArgs(args: string[]): {
@@ -419,6 +423,13 @@ jobs:
 		case "list": {
 			const store = new Store(flags.db ?? DEFAULT_DB);
 			const jobs = store.listJobs();
+			const jsonOutput = flags.json === "true" || flags.output === "json";
+
+			if (jsonOutput) {
+				console.log(JSON.stringify(jobs, null, 2));
+				store.close();
+				break;
+			}
 
 			if (jobs.length === 0) {
 				console.log("No jobs defined. Use 'cronbase add' to create one.");
@@ -446,6 +457,7 @@ jobs:
 		case "history": {
 			const store = new Store(flags.db ?? DEFAULT_DB);
 			const limit = Number(flags.limit) || 20;
+			const jsonOutput = flags.json === "true" || flags.output === "json";
 
 			let jobId: number | undefined;
 			if (flags.job) {
@@ -458,6 +470,12 @@ jobs:
 			}
 
 			const execs = store.getExecutions({ jobId, limit });
+
+			if (jsonOutput) {
+				console.log(JSON.stringify(execs, null, 2));
+				store.close();
+				break;
+			}
 
 			if (execs.length === 0) {
 				console.log("No execution history.");
@@ -494,19 +512,28 @@ jobs:
 				process.exit(1);
 			}
 
-			console.log(`Running: ${job.name} (${job.command})`);
-			const result = await executeJob(job, store);
-			console.log(
-				`${statusIcon(result.status)} ${result.status} (${formatDuration(result.durationMs)}, exit ${result.exitCode})`,
-			);
+			const jsonOutput = flags.json === "true" || flags.output === "json";
 
-			if (result.stdout.trim()) {
-				console.log("\n--- stdout ---");
-				console.log(result.stdout.trim());
+			if (!jsonOutput) {
+				console.log(`Running: ${job.name} (${job.command})`);
 			}
-			if (result.stderr.trim()) {
-				console.log("\n--- stderr ---");
-				console.log(result.stderr.trim());
+			const result = await executeJob(job, store);
+
+			if (jsonOutput) {
+				console.log(JSON.stringify(result, null, 2));
+			} else {
+				console.log(
+					`${statusIcon(result.status)} ${result.status} (${formatDuration(result.durationMs)}, exit ${result.exitCode})`,
+				);
+
+				if (result.stdout.trim()) {
+					console.log("\n--- stdout ---");
+					console.log(result.stdout.trim());
+				}
+				if (result.stderr.trim()) {
+					console.log("\n--- stderr ---");
+					console.log(result.stderr.trim());
+				}
 			}
 
 			store.close();
@@ -572,6 +599,23 @@ jobs:
 		case "stats": {
 			const store = new Store(flags.db ?? DEFAULT_DB);
 			const stats = store.getStats();
+			const jsonOutput = flags.json === "true" || flags.output === "json";
+
+			if (jsonOutput) {
+				const successRate =
+					stats.recentSuccesses + stats.recentFailures > 0
+						? Number(
+								(
+									(stats.recentSuccesses / (stats.recentSuccesses + stats.recentFailures)) *
+									100
+								).toFixed(1),
+							)
+						: null;
+				console.log(JSON.stringify({ ...stats, successRate }, null, 2));
+				store.close();
+				break;
+			}
+
 			console.log(`Jobs:      ${stats.totalJobs} total, ${stats.enabledJobs} enabled`);
 			console.log(
 				`Last 24h:  ${stats.recentSuccesses} successes, ${stats.recentFailures} failures`,
@@ -655,10 +699,46 @@ jobs:
 		case "export": {
 			const store = new Store(flags.db ?? DEFAULT_DB);
 			const jobs = store.listJobs();
+			const jsonOutput = flags.json === "true" || flags.output === "json";
+
 			if (jobs.length === 0) {
-				console.log("# No jobs to export");
+				if (jsonOutput) {
+					console.log(JSON.stringify({ jobs: [] }, null, 2));
+				} else {
+					console.log("# No jobs to export");
+				}
 				store.close();
 				return;
+			}
+
+			if (jsonOutput) {
+				const exportData = {
+					jobs: jobs.map((job) => {
+						const entry: Record<string, unknown> = {
+							name: job.name,
+							schedule: job.schedule,
+							command: job.command,
+						};
+						if (job.cwd && job.cwd !== ".") entry.cwd = job.cwd;
+						if (job.timeout > 0) entry.timeout = job.timeout;
+						if (job.retry.maxAttempts > 0) {
+							entry.retry = {
+								maxAttempts: job.retry.maxAttempts,
+								...(job.retry.baseDelay !== 30 ? { baseDelay: job.retry.baseDelay } : {}),
+							};
+						}
+						if (job.description) entry.description = job.description;
+						if (job.tags.length > 0) entry.tags = job.tags;
+						if (!job.enabled) entry.enabled = false;
+						if (Object.keys(job.env).length > 0) entry.env = job.env;
+						const alertConfig = store.getJobAlert(job.id);
+						if (alertConfig?.webhooks?.length) entry.alerts = alertConfig.webhooks;
+						return entry;
+					}),
+				};
+				console.log(JSON.stringify(exportData, null, 2));
+				store.close();
+				break;
 			}
 
 			const yamlLines: string[] = ["jobs:"];
