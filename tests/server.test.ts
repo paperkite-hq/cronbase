@@ -358,11 +358,24 @@ describe("Input validation via API", () => {
 				name: "env-test",
 				schedule: "@daily",
 				command: "echo hi",
-				env: { PATH: "/usr/bin" },
+				env: { USER: "nobody" },
 			}),
 		});
 		expect(status).toBe(400);
-		expect(data.error).toContain("PATH");
+		expect(data.error).toContain("USER");
+	});
+
+	test("allows PATH override in env", async () => {
+		const { status } = await api("/api/jobs", {
+			method: "POST",
+			body: JSON.stringify({
+				name: "path-env-test",
+				schedule: "@daily",
+				command: "echo hi",
+				env: { PATH: "/usr/local/bin:/usr/bin" },
+			}),
+		});
+		expect(status).toBe(201);
 	});
 
 	test("rejects update with invalid name", async () => {

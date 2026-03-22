@@ -90,9 +90,16 @@ describe("validateEnv", () => {
 		expect(validateEnv([])).not.toBeNull();
 	});
 
-	test("rejects reserved env vars", () => {
-		expect(validateEnv({ PATH: "/usr/bin" })).not.toBeNull();
-		expect(validateEnv({ HOME: "/root" })).not.toBeNull();
+	test("rejects reserved env vars (USER, SHELL)", () => {
+		expect(validateEnv({ USER: "nobody" })).not.toBeNull();
+		expect(validateEnv({ SHELL: "/bin/zsh" })).not.toBeNull();
+	});
+
+	test("allows crontab-standard env overrides (PATH, HOME, LANG, LC_ALL)", () => {
+		expect(validateEnv({ PATH: "/usr/local/bin:/usr/bin" })).toBeNull();
+		expect(validateEnv({ HOME: "/opt/app" })).toBeNull();
+		expect(validateEnv({ LANG: "en_US.UTF-8" })).toBeNull();
+		expect(validateEnv({ LC_ALL: "C" })).toBeNull();
 	});
 
 	test("rejects non-string values", () => {
@@ -182,6 +189,15 @@ describe("validateWebhookUrl", () => {
 
 		// Link-local
 		expect(validateWebhookUrl("http://169.254.0.1/hook")).not.toBeNull();
+
+		// IPv6 unique local addresses (fc00::/7)
+		expect(validateWebhookUrl("http://[fc00::1]/hook")).not.toBeNull();
+		expect(validateWebhookUrl("http://[fc12::1]/hook")).not.toBeNull();
+		expect(validateWebhookUrl("http://[fd00::1]/hook")).not.toBeNull();
+		expect(validateWebhookUrl("http://[fdab::1]/hook")).not.toBeNull();
+
+		// IPv6 link-local
+		expect(validateWebhookUrl("http://[fe80::1]/hook")).not.toBeNull();
 	});
 
 	test("accepts public IP addresses", () => {
@@ -261,7 +277,7 @@ describe("validateJobConfig", () => {
 		const err = validateJobConfig({
 			name: "backup",
 			command: "echo hi",
-			env: { PATH: "/bad" },
+			env: { USER: "nobody" },
 		});
 		expect(err).not.toBeNull();
 		expect(err?.field).toBe("env");

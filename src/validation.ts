@@ -38,8 +38,14 @@ export const LIMITS = {
 /** Valid job name pattern: alphanumeric, hyphens, underscores, dots. */
 const JOB_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
 
-/** Reserved environment variable names that should not be overridden. */
-const RESERVED_ENV_VARS = new Set(["PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL"]);
+/**
+ * Reserved environment variable names that should not be overridden.
+ * Only USER and SHELL are blocked — overriding these can cause confusing
+ * behavior in subprocesses (e.g. sudo, id, tty handling).
+ * PATH, HOME, LANG, LC_ALL are intentionally allowed because standard
+ * crontab(5) supports overriding them and they are commonly used.
+ */
+const RESERVED_ENV_VARS = new Set(["USER", "SHELL"]);
 
 export interface ValidationError {
 	field: string;
@@ -187,7 +193,8 @@ function isPrivateIp(hostname: string): boolean {
 	if (/^127\./.test(h)) return true;
 	// IPv6 private/link-local
 	if (/^fe80:/i.test(h)) return true;
-	if (/^fc00:/i.test(h) || /^fd[0-9a-f]{2}:/i.test(h)) return true;
+	// RFC 4193 unique local addresses: fc00::/7 covers fc00::-fdff::
+	if (/^f[cd][0-9a-f]{2}:/i.test(h)) return true;
 	// Cloud metadata
 	if (h === "169.254.169.254") return true;
 	return false;
