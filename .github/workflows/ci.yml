@@ -25,8 +25,23 @@ jobs:
       - name: Type check
         run: bunx --bun tsc --noEmit
 
-      - name: Run tests
-        run: bun test
+      - name: Run tests with coverage
+        run: bun test --coverage 2>&1 | tee /tmp/test-output.txt
+
+      - name: Check coverage threshold
+        run: |
+          # Extract overall line coverage percentage
+          LINE_COV=$(grep "All files" /tmp/test-output.txt | awk -F'|' '{gsub(/[[:space:]]/, "", $3); print $3}')
+          FUNC_COV=$(grep "All files" /tmp/test-output.txt | awk -F'|' '{gsub(/[[:space:]]/, "", $2); print $2}')
+          echo "Line coverage: ${LINE_COV}%"
+          echo "Function coverage: ${FUNC_COV}%"
+
+          # Fail if line coverage drops below 80%
+          if [ "$(echo "$LINE_COV < 80" | bc)" -eq 1 ]; then
+            echo "::error::Line coverage ${LINE_COV}% is below 80% threshold"
+            exit 1
+          fi
+          echo "Coverage check passed."
 
   docs:
     runs-on: ubuntu-latest
