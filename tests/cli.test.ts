@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { formatDate, formatDuration, parseArgs, parseCrontabLine, statusIcon } from "../src/cli";
+
+// CLI tests spawn Bun subprocesses. Under load (e.g., pre-commit hooks running
+// all test files concurrently), subprocess startup + SQLite init can exceed the
+// default 5s timeout. 15s handles multi-subprocess tests on a loaded system.
+setDefaultTimeout(15_000);
 
 const CLI = join(import.meta.dir, "../src/cli.ts");
 
