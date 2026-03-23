@@ -2,7 +2,14 @@ import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatDate, formatDuration, parseArgs, parseCrontabLine, statusIcon } from "../src/cli";
+import {
+	formatDate,
+	formatDuration,
+	parseArgs,
+	parseCrontabLine,
+	runCommand,
+	statusIcon,
+} from "../src/cli";
 
 // CLI tests spawn Bun subprocesses. Under load (e.g., pre-commit hooks running
 // all test files concurrently), subprocess startup + SQLite init can exceed the
@@ -986,5 +993,411 @@ describe("validate", () => {
 		expect(stderr).toContain("my-job");
 		expect(stderr).toContain("Duplicate");
 		rmSync(dir, { recursive: true });
+	});
+});
+
+/**
+ * In-process tests via runCommand() — these exercise the same code paths as
+ * the subprocess tests above, but run in the test process so bun's coverage
+ * tool can track line execution.
+ */
+describe("runCommand (in-process)", () => {
+	let tmpDir: string;
+
+	afterEach(() => {
+		if (tmpDir && existsSync(tmpDir)) {
+			rmSync(tmpDir, { recursive: true });
+		}
+	});
+
+	function freshDb(): string {
+		tmpDir = mkdtempSync(join(tmpdir(), "cronbase-inproc-test-"));
+		return join(tmpDir, "test.db");
+	}
+
+	test("version returns 0", async () => {
+		const code = await runCommand("version", {}, []);
+		expect(code).toBe(0);
+	});
+
+	test("--version flag returns 0", async () => {
+		const code = await runCommand("anything", { version: "true" }, []);
+		expect(code).toBe(0);
+	});
+
+	test("help returns 0", async () => {
+		const code = await runCommand("help", {}, []);
+		expect(code).toBe(0);
+	});
+
+	test("--help returns 0", async () => {
+		const code = await runCommand("--help", {}, []);
+		expect(code).toBe(0);
+	});
+
+	test("unknown command returns 1", async () => {
+		const code = await runCommand("bogus", {}, []);
+		expect(code).toBe(1);
+	});
+
+	test("add with missing fields returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("add", { name: "test", db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("add creates a job", async () => {
+		const db = freshDb();
+		const code = await runCommand(
+			"add",
+			{ name: "my-job", schedule: "*/5 * * * *", command: "echo hello", db },
+			[],
+		);
+		expect(code).toBe(0);
+	});
+
+	test("add with invalid schedule returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand(
+			"add",
+			{ name: "bad", schedule: "not-cron", command: "echo x", db },
+			[],
+		);
+		expect(code).toBe(1);
+	});
+
+	test("add duplicate name returns 1", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "dup", schedule: "* * * * *", command: "echo 1", db }, []);
+		const code = await runCommand(
+			"add",
+			{ name: "dup", schedule: "* * * * *", command: "echo 2", db },
+			[],
+		);
+		expect(code).toBe(1);
+	});
+
+	test("add with retries", async () => {
+		const db = freshDb();
+		const code = await runCommand(
+			"add",
+			{
+				name: "retry-job",
+				schedule: "0 * * * *",
+				command: "echo retry",
+				retries: "3",
+				"retry-delay": "10",
+				db,
+			},
+			[],
+		);
+		expect(code).toBe(0);
+	});
+
+	test("add with timeout and description", async () => {
+		const db = freshDb();
+		const code = await runCommand(
+			"add",
+			{
+				name: "detailed",
+				schedule: "0 * * * *",
+				command: "date",
+				timeout: "60",
+				description: "A test job",
+				db,
+			},
+			[],
+		);
+		expect(code).toBe(0);
+	});
+
+	test("add with --disabled", async () => {
+		const db = freshDb();
+		const code = await runCommand(
+			"add",
+			{ name: "dis", schedule: "0 * * * *", command: "echo x", disabled: "true", db },
+			[],
+		);
+		expect(code).toBe(0);
+	});
+
+	test("list with no jobs", async () => {
+		const db = freshDb();
+		const code = await runCommand("list", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("list with jobs", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "j1", schedule: "* * * * *", command: "echo a", db }, []);
+		await runCommand("add", { name: "j2", schedule: "0 * * * *", command: "echo b", db }, []);
+		const code = await runCommand("list", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("list --json", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "j1", schedule: "* * * * *", command: "echo a", db }, []);
+		const code = await runCommand("list", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("run executes a job", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "echo-job", schedule: "* * * * *", command: "echo hello-world", db },
+			[],
+		);
+		const code = await runCommand("run", { db }, ["echo-job"]);
+		expect(code).toBe(0);
+	});
+
+	test("run with failing command returns 1", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "fail-job", schedule: "* * * * *", command: "exit 42", db },
+			[],
+		);
+		const code = await runCommand("run", { db }, ["fail-job"]);
+		expect(code).toBe(1);
+	});
+
+	test("run --json", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "json-run", schedule: "* * * * *", command: "echo hi", db },
+			[],
+		);
+		const code = await runCommand("run", { json: "true", db }, ["json-run"]);
+		expect(code).toBe(0);
+	});
+
+	test("run with missing name returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("run", { db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("run with unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("run", { db }, ["nonexistent"]);
+		expect(code).toBe(1);
+	});
+
+	test("remove deletes a job", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "to-remove", schedule: "* * * * *", command: "echo x", db },
+			[],
+		);
+		const code = await runCommand("remove", { db }, ["to-remove"]);
+		expect(code).toBe(0);
+	});
+
+	test("remove with missing name returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("remove", { db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("remove unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("remove", { db }, ["ghost"]);
+		expect(code).toBe(1);
+	});
+
+	test("enable and disable", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "toggle", schedule: "* * * * *", command: "echo x", db }, []);
+		expect(await runCommand("disable", { db }, ["toggle"])).toBe(0);
+		expect(await runCommand("enable", { db }, ["toggle"])).toBe(0);
+	});
+
+	test("enable with missing name returns 1", async () => {
+		const code = await runCommand("enable", {}, []);
+		expect(code).toBe(1);
+	});
+
+	test("disable with missing name returns 1", async () => {
+		const code = await runCommand("disable", {}, []);
+		expect(code).toBe(1);
+	});
+
+	test("enable unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("enable", { db }, ["ghost"]);
+		expect(code).toBe(1);
+	});
+
+	test("disable unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("disable", { db }, ["ghost"]);
+		expect(code).toBe(1);
+	});
+
+	test("stats with empty db", async () => {
+		const db = freshDb();
+		const code = await runCommand("stats", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("stats after adding jobs", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "s1", schedule: "* * * * *", command: "echo x", db }, []);
+		const code = await runCommand("stats", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("stats --json", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "s1", schedule: "* * * * *", command: "echo x", db }, []);
+		await runCommand("run", { db }, ["s1"]);
+		const code = await runCommand("stats", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("stats --json with no executions", async () => {
+		const db = freshDb();
+		const code = await runCommand("stats", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("history with no executions", async () => {
+		const db = freshDb();
+		const code = await runCommand("history", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("history after run", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "h1", schedule: "* * * * *", command: "echo hi", db }, []);
+		await runCommand("run", { db }, ["h1"]);
+		const code = await runCommand("history", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("history --json", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "h1", schedule: "* * * * *", command: "echo hi", db }, []);
+		await runCommand("run", { db }, ["h1"]);
+		const code = await runCommand("history", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("history --job filter", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "a", schedule: "* * * * *", command: "echo a", db }, []);
+		await runCommand("run", { db }, ["a"]);
+		const code = await runCommand("history", { job: "a", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("history --job unknown returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("history", { job: "nope", db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("prune", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "p1", schedule: "* * * * *", command: "echo x", db }, []);
+		await runCommand("run", { db }, ["p1"]);
+		const code = await runCommand("prune", { days: "0", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("export with no jobs", async () => {
+		const db = freshDb();
+		const code = await runCommand("export", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("export produces YAML", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{
+				name: "exp",
+				schedule: "0 */2 * * *",
+				command: "echo exported",
+				description: "test export",
+				db,
+			},
+			[],
+		);
+		const code = await runCommand("export", { db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("export --json", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "exp", schedule: "* * * * *", command: "echo x", db }, []);
+		const code = await runCommand("export", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("export --json with no jobs", async () => {
+		const db = freshDb();
+		const code = await runCommand("export", { json: "true", db }, []);
+		expect(code).toBe(0);
+	});
+
+	test("init creates config file", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cronbase-init-inproc-"));
+		const configPath = join(dir, "cronbase.yaml");
+		const code = await runCommand("init", { path: configPath }, []);
+		expect(code).toBe(0);
+		expect(existsSync(configPath)).toBe(true);
+		rmSync(dir, { recursive: true });
+	});
+
+	test("init refuses overwrite", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cronbase-init-inproc-"));
+		const configPath = join(dir, "cronbase.yaml");
+		await Bun.write(configPath, "existing");
+		const code = await runCommand("init", { path: configPath }, []);
+		expect(code).toBe(1);
+		rmSync(dir, { recursive: true });
+	});
+
+	test("init --force overwrites", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cronbase-init-inproc-"));
+		const configPath = join(dir, "cronbase.yaml");
+		await Bun.write(configPath, "old");
+		const code = await runCommand("init", { path: configPath, force: "true" }, []);
+		expect(code).toBe(0);
+		const content = await Bun.file(configPath).text();
+		expect(content).toContain("jobs:");
+		rmSync(dir, { recursive: true });
+	});
+
+	test("validate valid config", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cronbase-validate-inproc-"));
+		const configPath = join(dir, "cronbase.yaml");
+		await Bun.write(
+			configPath,
+			`jobs:\n  - name: test\n    schedule: "* * * * *"\n    command: echo hi\n`,
+		);
+		const code = await runCommand("validate", { path: configPath }, []);
+		expect(code).toBe(0);
+		rmSync(dir, { recursive: true });
+	});
+
+	test("validate invalid config returns 1", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "cronbase-validate-inproc-"));
+		const configPath = join(dir, "cronbase.yaml");
+		await Bun.write(configPath, `jobs:\n  - name: test\n    schedule: "bad"\n    command: echo\n`);
+		const code = await runCommand("validate", { path: configPath }, []);
+		expect(code).toBe(1);
+		rmSync(dir, { recursive: true });
+	});
+
+	test("validate missing file returns 1", async () => {
+		const code = await runCommand("validate", { path: "/nonexistent/cronbase.yaml" }, []);
+		expect(code).toBe(1);
 	});
 });
