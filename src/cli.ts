@@ -252,8 +252,17 @@ async function importFromCrontab(
 	return { total: entries.length, added, skipped, entries };
 }
 
-async function main(): Promise<void> {
-	const { command, flags, positional } = parseArgs(process.argv.slice(2));
+/**
+ * Run a CLI command. Returns an exit code (0 = success).
+ * Exported for in-process testing — subprocess tests can't track coverage.
+ * The `start` command is excluded (it blocks forever with signal handlers).
+ */
+export async function runCommand(
+	command: string,
+	flags: Record<string, string>,
+	positional: string[],
+): Promise<number> {
+	const dbPath = flags.db ?? DEFAULT_DB;
 
 	if (
 		flags.version === "true" ||
@@ -262,7 +271,7 @@ async function main(): Promise<void> {
 		command === "-v"
 	) {
 		console.log(`cronbase v${VERSION}`);
-		return;
+		return 0;
 	}
 
 	switch (command) {
@@ -273,7 +282,7 @@ async function main(): Promise<void> {
 			// Check if file already exists
 			if (!force && (await Bun.file(outputPath).exists())) {
 				console.error(`Error: ${outputPath} already exists. Use --force to overwrite.`);
-				process.exit(1);
+				return 1;
 			}
 
 			const configContent = `# cronbase configuration
@@ -322,13 +331,12 @@ jobs:
 			console.log(`  2. Start the scheduler:`);
 			console.log(`     cronbase start --config ${outputPath}`);
 			console.log(`  3. Open http://localhost:7433 to view the dashboard`);
-			break;
+			return 0;
 		}
 
 		case "start": {
 			const port = Number(flags.port) || 7433;
 			const hostname = flags.host;
-			const dbPath = flags.db ?? DEFAULT_DB;
 			const configPath = flags.config;
 			const pruneAfterDays = flags["prune-days"] ? Number(flags["prune-days"]) : undefined;
 			const scheduler = new Scheduler({ dbPath, port, hostname, pruneAfterDays });
@@ -340,7 +348,7 @@ jobs:
 					console.log(`[cronbase] Config loaded: ${result.added} added, ${result.updated} updated`);
 				} catch (e) {
 					console.error(`[cronbase] Config error: ${(e as Error).message}`);
-					process.exit(1);
+					return 1;
 				}
 			}
 
@@ -363,278 +371,294 @@ jobs:
 
 			// Keep alive
 			await new Promise(() => {}); // never resolves
-			break;
+			return 0; // unreachable but satisfies TypeScript
 		}
 
 		case "add": {
 			if (!flags.name || !flags.schedule || !flags.command) {
 				console.error("Error: --name, --schedule, and --command are required");
 				console.error("Run 'cronbase add --help' for usage");
-				process.exit(1);
+				return 1;
 			}
 
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const config: JobConfig = {
-				name: flags.name,
-				schedule: flags.schedule,
-				command: flags.command,
-				cwd: flags.cwd,
-				timeout: flags.timeout ? Number(flags.timeout) : undefined,
-				retry: flags.retries
-					? { maxAttempts: Number(flags.retries), baseDelay: Number(flags["retry-delay"] ?? 30) }
-					: undefined,
-				description: flags.description,
-				enabled: flags.disabled !== "true",
-			};
-
-			// Validate all fields (name pattern, command length, env vars, schedule, etc.)
-			const validationError = validateJobConfig(config as unknown as Record<string, unknown>);
-			if (validationError) {
-				console.error(`Error: ${validationError.message}`);
-				process.exit(1);
-			}
-			const scheduleError = validateSchedule(flags.schedule, parseCron);
-			if (scheduleError) {
-				console.error(`Error: ${scheduleError.message}`);
-				process.exit(1);
-			}
-
-			// Check for duplicate name before insert (same as API — avoids raw SQLite error)
-			const existing = store.getJobByName(flags.name);
-			if (existing) {
-				console.error(`Error: A job named "${flags.name}" already exists`);
-				process.exit(1);
-			}
-
+			const store = new Store(dbPath);
 			try {
+				const config: JobConfig = {
+					name: flags.name,
+					schedule: flags.schedule,
+					command: flags.command,
+					cwd: flags.cwd,
+					timeout: flags.timeout ? Number(flags.timeout) : undefined,
+					retry: flags.retries
+						? { maxAttempts: Number(flags.retries), baseDelay: Number(flags["retry-delay"] ?? 30) }
+						: undefined,
+					description: flags.description,
+					enabled: flags.disabled !== "true",
+				};
+
+				// Validate all fields (name pattern, command length, env vars, schedule, etc.)
+				const validationError = validateJobConfig(config as unknown as Record<string, unknown>);
+				if (validationError) {
+					console.error(`Error: ${validationError.message}`);
+					return 1;
+				}
+				const scheduleError = validateSchedule(flags.schedule, parseCron);
+				if (scheduleError) {
+					console.error(`Error: ${scheduleError.message}`);
+					return 1;
+				}
+
+				// Check for duplicate name before insert (same as API — avoids raw SQLite error)
+				const existing = store.getJobByName(flags.name);
+				if (existing) {
+					console.error(`Error: A job named "${flags.name}" already exists`);
+					return 1;
+				}
+
 				const job = store.addJob(config);
 				console.log(`✓ Job added: ${job.name}`);
 				console.log(`  Schedule: ${job.schedule} (${describeCron(job.schedule)})`);
 				console.log(`  Command:  ${job.command}`);
 				console.log(`  Next run: ${formatDate(job.nextRun)}`);
+				return 0;
 			} catch (e) {
 				console.error(`Error: ${(e as Error).message}`);
-				process.exit(1);
+				return 1;
+			} finally {
+				store.close();
 			}
-			store.close();
-			break;
 		}
 
 		case "list": {
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const jobs = store.listJobs();
-			const jsonOutput = flags.json === "true" || flags.output === "json";
+			const store = new Store(dbPath);
+			try {
+				const jobs = store.listJobs();
+				const jsonOutput = flags.json === "true" || flags.output === "json";
 
-			if (jsonOutput) {
-				console.log(JSON.stringify(jobs, null, 2));
-				store.close();
-				break;
-			}
+				if (jsonOutput) {
+					console.log(JSON.stringify(jobs, null, 2));
+					return 0;
+				}
 
-			if (jobs.length === 0) {
-				console.log("No jobs defined. Use 'cronbase add' to create one.");
-				store.close();
-				return;
-			}
+				if (jobs.length === 0) {
+					console.log("No jobs defined. Use 'cronbase add' to create one.");
+					return 0;
+				}
 
-			console.log(
-				`${"Name".padEnd(25)} ${"Schedule".padEnd(20)} ${"Status".padEnd(10)} ${"Last Run".padEnd(22)} Next Run`,
-			);
-			console.log("─".repeat(100));
-
-			for (const job of jobs) {
-				const enabled = job.enabled ? "" : " (disabled)";
 				console.log(
-					`${(job.name + enabled).padEnd(25)} ${job.schedule.padEnd(20)} ${(`${statusIcon(job.lastStatus)} ${job.lastStatus ?? "never"}`).padEnd(10)} ${formatDate(job.lastRun).padEnd(22)} ${formatDate(job.nextRun)}`,
+					`${"Name".padEnd(25)} ${"Schedule".padEnd(20)} ${"Status".padEnd(10)} ${"Last Run".padEnd(22)} Next Run`,
 				);
-			}
+				console.log("─".repeat(100));
 
-			console.log(`\n${jobs.length} job(s)`);
-			store.close();
-			break;
+				for (const job of jobs) {
+					const enabled = job.enabled ? "" : " (disabled)";
+					console.log(
+						`${(job.name + enabled).padEnd(25)} ${job.schedule.padEnd(20)} ${(`${statusIcon(job.lastStatus)} ${job.lastStatus ?? "never"}`).padEnd(10)} ${formatDate(job.lastRun).padEnd(22)} ${formatDate(job.nextRun)}`,
+					);
+				}
+
+				console.log(`\n${jobs.length} job(s)`);
+				return 0;
+			} finally {
+				store.close();
+			}
 		}
 
 		case "history": {
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const limit = Number(flags.limit) || 20;
-			const jsonOutput = flags.json === "true" || flags.output === "json";
+			const store = new Store(dbPath);
+			try {
+				const limit = Number(flags.limit) || 20;
+				const jsonOutput = flags.json === "true" || flags.output === "json";
 
-			let jobId: number | undefined;
-			if (flags.job) {
-				const job = store.getJobByName(flags.job);
-				if (!job) {
-					console.error(`Error: Job "${flags.job}" not found`);
-					process.exit(1);
+				let jobId: number | undefined;
+				if (flags.job) {
+					const job = store.getJobByName(flags.job);
+					if (!job) {
+						console.error(`Error: Job "${flags.job}" not found`);
+						return 1;
+					}
+					jobId = job.id;
 				}
-				jobId = job.id;
-			}
 
-			const execs = store.getExecutions({ jobId, limit });
+				const execs = store.getExecutions({ jobId, limit });
 
-			if (jsonOutput) {
-				console.log(JSON.stringify(execs, null, 2));
-				store.close();
-				break;
-			}
+				if (jsonOutput) {
+					console.log(JSON.stringify(execs, null, 2));
+					return 0;
+				}
 
-			if (execs.length === 0) {
-				console.log("No execution history.");
-				store.close();
-				return;
-			}
+				if (execs.length === 0) {
+					console.log("No execution history.");
+					return 0;
+				}
 
-			console.log(
-				`${"Job".padEnd(20)} ${"Status".padEnd(10)} ${"Duration".padEnd(10)} ${"Exit".padEnd(6)} ${"Attempt".padEnd(8)} Started`,
-			);
-			console.log("─".repeat(90));
-
-			for (const exec of execs) {
 				console.log(
-					`${exec.jobName.padEnd(20)} ${(`${statusIcon(exec.status)} ${exec.status}`).padEnd(10)} ${formatDuration(exec.durationMs).padEnd(10)} ${String(exec.exitCode ?? "—").padEnd(6)} ${String(exec.attempt).padEnd(8)} ${formatDate(exec.startedAt)}`,
+					`${"Job".padEnd(20)} ${"Status".padEnd(10)} ${"Duration".padEnd(10)} ${"Exit".padEnd(6)} ${"Attempt".padEnd(8)} Started`,
 				);
-			}
+				console.log("─".repeat(90));
 
-			store.close();
-			break;
+				for (const exec of execs) {
+					console.log(
+						`${exec.jobName.padEnd(20)} ${(`${statusIcon(exec.status)} ${exec.status}`).padEnd(10)} ${formatDuration(exec.durationMs).padEnd(10)} ${String(exec.exitCode ?? "—").padEnd(6)} ${String(exec.attempt).padEnd(8)} ${formatDate(exec.startedAt)}`,
+					);
+				}
+
+				return 0;
+			} finally {
+				store.close();
+			}
 		}
 
 		case "run": {
 			const name = positional[0] ?? flags.name;
 			if (!name) {
 				console.error("Error: Job name required. Usage: cronbase run <name>");
-				process.exit(1);
+				return 1;
 			}
 
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const job = store.getJobByName(name);
-			if (!job) {
-				console.error(`Error: Job "${name}" not found`);
-				process.exit(1);
-			}
-
-			const jsonOutput = flags.json === "true" || flags.output === "json";
-
-			if (!jsonOutput) {
-				console.log(`Running: ${job.name} (${job.command})`);
-			}
-			const result = await executeJob(job, store);
-
-			if (jsonOutput) {
-				console.log(JSON.stringify(result, null, 2));
-			} else {
-				console.log(
-					`${statusIcon(result.status)} ${result.status} (${formatDuration(result.durationMs)}, exit ${result.exitCode})`,
-				);
-
-				if (result.stdout.trim()) {
-					console.log("\n--- stdout ---");
-					console.log(result.stdout.trim());
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
 				}
-				if (result.stderr.trim()) {
-					console.log("\n--- stderr ---");
-					console.log(result.stderr.trim());
-				}
-			}
 
-			store.close();
-			process.exit(result.status === "success" ? 0 : 1);
-			break;
+				const jsonOutput = flags.json === "true" || flags.output === "json";
+
+				if (!jsonOutput) {
+					console.log(`Running: ${job.name} (${job.command})`);
+				}
+				const result = await executeJob(job, store);
+
+				if (jsonOutput) {
+					console.log(JSON.stringify(result, null, 2));
+				} else {
+					console.log(
+						`${statusIcon(result.status)} ${result.status} (${formatDuration(result.durationMs)}, exit ${result.exitCode})`,
+					);
+
+					if (result.stdout.trim()) {
+						console.log("\n--- stdout ---");
+						console.log(result.stdout.trim());
+					}
+					if (result.stderr.trim()) {
+						console.log("\n--- stderr ---");
+						console.log(result.stderr.trim());
+					}
+				}
+
+				return result.status === "success" ? 0 : 1;
+			} finally {
+				store.close();
+			}
 		}
 
 		case "remove": {
 			const name = positional[0] ?? flags.name;
 			if (!name) {
 				console.error("Error: Job name required. Usage: cronbase remove <name>");
-				process.exit(1);
+				return 1;
 			}
 
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const job = store.getJobByName(name);
-			if (!job) {
-				console.error(`Error: Job "${name}" not found`);
-				process.exit(1);
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+				store.deleteJob(job.id);
+				console.log(`✓ Removed: ${name}`);
+				return 0;
+			} finally {
+				store.close();
 			}
-			store.deleteJob(job.id);
-			console.log(`✓ Removed: ${name}`);
-			store.close();
-			break;
 		}
 
 		case "enable": {
 			const name = positional[0];
 			if (!name) {
 				console.error("Error: Job name required");
-				process.exit(1);
+				return 1;
 			}
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const job = store.getJobByName(name);
-			if (!job) {
-				console.error(`Error: Job "${name}" not found`);
-				process.exit(1);
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+				store.toggleJob(job.id, true);
+				console.log(`✓ Enabled: ${name}`);
+				return 0;
+			} finally {
+				store.close();
 			}
-			store.toggleJob(job.id, true);
-			console.log(`✓ Enabled: ${name}`);
-			store.close();
-			break;
 		}
 
 		case "disable": {
 			const name = positional[0];
 			if (!name) {
 				console.error("Error: Job name required");
-				process.exit(1);
+				return 1;
 			}
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const job = store.getJobByName(name);
-			if (!job) {
-				console.error(`Error: Job "${name}" not found`);
-				process.exit(1);
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+				store.toggleJob(job.id, false);
+				console.log(`✓ Disabled: ${name}`);
+				return 0;
+			} finally {
+				store.close();
 			}
-			store.toggleJob(job.id, false);
-			console.log(`✓ Disabled: ${name}`);
-			store.close();
-			break;
 		}
 
 		case "stats": {
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const stats = store.getStats();
-			const jsonOutput = flags.json === "true" || flags.output === "json";
+			const store = new Store(dbPath);
+			try {
+				const stats = store.getStats();
+				const jsonOutput = flags.json === "true" || flags.output === "json";
 
-			if (jsonOutput) {
-				const successRate =
+				if (jsonOutput) {
+					const successRate =
+						stats.recentSuccesses + stats.recentFailures > 0
+							? Number(
+									(
+										(stats.recentSuccesses / (stats.recentSuccesses + stats.recentFailures)) *
+										100
+									).toFixed(1),
+								)
+							: null;
+					console.log(JSON.stringify({ ...stats, successRate }, null, 2));
+					return 0;
+				}
+
+				console.log(`Jobs:      ${stats.totalJobs} total, ${stats.enabledJobs} enabled`);
+				console.log(
+					`Last 24h:  ${stats.recentSuccesses} successes, ${stats.recentFailures} failures`,
+				);
+				const rate =
 					stats.recentSuccesses + stats.recentFailures > 0
-						? Number(
-								(
-									(stats.recentSuccesses / (stats.recentSuccesses + stats.recentFailures)) *
-									100
-								).toFixed(1),
-							)
-						: null;
-				console.log(JSON.stringify({ ...stats, successRate }, null, 2));
+						? (
+								(stats.recentSuccesses / (stats.recentSuccesses + stats.recentFailures)) *
+								100
+							).toFixed(1)
+						: "—";
+				console.log(`Success:   ${rate}%`);
+				return 0;
+			} finally {
 				store.close();
-				break;
 			}
-
-			console.log(`Jobs:      ${stats.totalJobs} total, ${stats.enabledJobs} enabled`);
-			console.log(
-				`Last 24h:  ${stats.recentSuccesses} successes, ${stats.recentFailures} failures`,
-			);
-			const rate =
-				stats.recentSuccesses + stats.recentFailures > 0
-					? (
-							(stats.recentSuccesses / (stats.recentSuccesses + stats.recentFailures)) *
-							100
-						).toFixed(1)
-					: "—";
-			console.log(`Success:   ${rate}%`);
-			store.close();
-			break;
 		}
 
 		case "import": {
 			const dryRun = flags["dry-run"] === "true";
-			const store = dryRun ? null : new Store(flags.db ?? DEFAULT_DB);
+			const store = dryRun ? null : new Store(dbPath);
 			try {
 				const result = await importFromCrontab(store, dryRun);
 				if (dryRun) {
@@ -648,12 +672,13 @@ jobs:
 						`✓ Imported ${result.added} job(s), skipped ${result.skipped} (already exist)`,
 					);
 				}
+				return 0;
 			} catch (e) {
 				console.error(`Error: ${(e as Error).message}`);
-				process.exit(1);
+				return 1;
+			} finally {
+				store?.close();
 			}
-			store?.close();
-			break;
 		}
 
 		case "validate": {
@@ -674,149 +699,160 @@ jobs:
 					}
 				}
 				console.log(`✓ ${configPath} is valid (${jobCount} job${jobCount === 1 ? "" : "s"})`);
-			} else {
-				for (const err of errors) {
-					const prefix = err.job ? `  ${err.job} [${err.field}]` : `  [${err.field}]`;
-					console.error(`✗ ${prefix}: ${err.message}`);
-				}
-				console.error(
-					`\n${errors.length} error${errors.length === 1 ? "" : "s"} found in ${configPath}`,
-				);
-				process.exit(1);
+				return 0;
 			}
-			break;
+			for (const err of errors) {
+				const prefix = err.job ? `  ${err.job} [${err.field}]` : `  [${err.field}]`;
+				console.error(`✗ ${prefix}: ${err.message}`);
+			}
+			console.error(
+				`\n${errors.length} error${errors.length === 1 ? "" : "s"} found in ${configPath}`,
+			);
+			return 1;
 		}
 
 		case "prune": {
-			const days = flags.days != null ? Number(flags.days) : 90;
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const deleted = store.pruneExecutions(days);
-			console.log(`✓ Pruned ${deleted} execution(s) older than ${days} days`);
-			store.close();
-			break;
+			const store = new Store(dbPath);
+			try {
+				const days = flags.days != null ? Number(flags.days) : 90;
+				const deleted = store.pruneExecutions(days);
+				console.log(`✓ Pruned ${deleted} execution(s) older than ${days} days`);
+				return 0;
+			} finally {
+				store.close();
+			}
 		}
 
 		case "export": {
-			const store = new Store(flags.db ?? DEFAULT_DB);
-			const jobs = store.listJobs();
-			const jsonOutput = flags.json === "true" || flags.output === "json";
+			const store = new Store(dbPath);
+			try {
+				const jobs = store.listJobs();
+				const jsonOutput = flags.json === "true" || flags.output === "json";
 
-			if (jobs.length === 0) {
+				if (jobs.length === 0) {
+					if (jsonOutput) {
+						console.log(JSON.stringify({ jobs: [] }, null, 2));
+					} else {
+						console.log("# No jobs to export");
+					}
+					return 0;
+				}
+
 				if (jsonOutput) {
-					console.log(JSON.stringify({ jobs: [] }, null, 2));
-				} else {
-					console.log("# No jobs to export");
-				}
-				store.close();
-				return;
-			}
-
-			if (jsonOutput) {
-				const exportData = {
-					jobs: jobs.map((job) => {
-						const entry: Record<string, unknown> = {
-							name: job.name,
-							schedule: job.schedule,
-							command: job.command,
-						};
-						if (job.cwd && job.cwd !== ".") entry.cwd = job.cwd;
-						if (job.timeout > 0) entry.timeout = job.timeout;
-						if (job.retry.maxAttempts > 0) {
-							entry.retry = {
-								maxAttempts: job.retry.maxAttempts,
-								...(job.retry.baseDelay !== 30 ? { baseDelay: job.retry.baseDelay } : {}),
+					const exportData = {
+						jobs: jobs.map((job) => {
+							const entry: Record<string, unknown> = {
+								name: job.name,
+								schedule: job.schedule,
+								command: job.command,
 							};
+							if (job.cwd && job.cwd !== ".") entry.cwd = job.cwd;
+							if (job.timeout > 0) entry.timeout = job.timeout;
+							if (job.retry.maxAttempts > 0) {
+								entry.retry = {
+									maxAttempts: job.retry.maxAttempts,
+									...(job.retry.baseDelay !== 30 ? { baseDelay: job.retry.baseDelay } : {}),
+								};
+							}
+							if (job.description) entry.description = job.description;
+							if (job.tags.length > 0) entry.tags = job.tags;
+							if (!job.enabled) entry.enabled = false;
+							if (Object.keys(job.env).length > 0) entry.env = job.env;
+							const alertConfig = store.getJobAlert(job.id);
+							if (alertConfig?.webhooks?.length) entry.alerts = alertConfig.webhooks;
+							return entry;
+						}),
+					};
+					console.log(JSON.stringify(exportData, null, 2));
+					return 0;
+				}
+
+				const yamlLines: string[] = ["jobs:"];
+				for (const job of jobs) {
+					yamlLines.push(`  - name: ${job.name}`);
+					yamlLines.push(`    schedule: "${job.schedule}"`);
+					// Use block scalar for multiline commands
+					if (job.command.includes("\n")) {
+						yamlLines.push("    command: |");
+						for (const cmdLine of job.command.split("\n")) {
+							yamlLines.push(`      ${cmdLine}`);
 						}
-						if (job.description) entry.description = job.description;
-						if (job.tags.length > 0) entry.tags = job.tags;
-						if (!job.enabled) entry.enabled = false;
-						if (Object.keys(job.env).length > 0) entry.env = job.env;
-						const alertConfig = store.getJobAlert(job.id);
-						if (alertConfig?.webhooks?.length) entry.alerts = alertConfig.webhooks;
-						return entry;
-					}),
-				};
-				console.log(JSON.stringify(exportData, null, 2));
+					} else {
+						yamlLines.push(`    command: ${job.command}`);
+					}
+					if (job.cwd && job.cwd !== ".") {
+						yamlLines.push(`    cwd: ${job.cwd}`);
+					}
+					if (job.timeout > 0) {
+						yamlLines.push(`    timeout: ${job.timeout}`);
+					}
+					if (job.retry.maxAttempts > 0) {
+						yamlLines.push("    retry:");
+						yamlLines.push(`      maxAttempts: ${job.retry.maxAttempts}`);
+						if (job.retry.baseDelay !== 30) {
+							yamlLines.push(`      baseDelay: ${job.retry.baseDelay}`);
+						}
+					}
+					if (job.description) {
+						yamlLines.push(`    description: ${job.description}`);
+					}
+					if (job.tags.length > 0) {
+						yamlLines.push(`    tags: [${job.tags.join(", ")}]`);
+					}
+					if (!job.enabled) {
+						yamlLines.push("    enabled: false");
+					}
+					if (Object.keys(job.env).length > 0) {
+						yamlLines.push("    env:");
+						for (const [k, v] of Object.entries(job.env)) {
+							yamlLines.push(`      ${k}: ${v}`);
+						}
+					}
+					// Export alert config if present
+					const alertConfig = store.getJobAlert(job.id);
+					if (alertConfig?.webhooks) {
+						for (const wh of alertConfig.webhooks) {
+							const events = wh.events;
+							if (events.includes("failed") && events.includes("timeout") && events.length === 2) {
+								yamlLines.push(`    on_failure: ${wh.url}`);
+							} else if (events.includes("success") && events.length === 1) {
+								yamlLines.push(`    on_success: ${wh.url}`);
+							} else if (
+								events.includes("success") &&
+								events.includes("failed") &&
+								events.includes("timeout")
+							) {
+								yamlLines.push(`    on_complete: ${wh.url}`);
+							}
+						}
+					}
+				}
+
+				console.log(yamlLines.join("\n"));
+				return 0;
+			} finally {
 				store.close();
-				break;
 			}
-
-			const yamlLines: string[] = ["jobs:"];
-			for (const job of jobs) {
-				yamlLines.push(`  - name: ${job.name}`);
-				yamlLines.push(`    schedule: "${job.schedule}"`);
-				// Use block scalar for multiline commands
-				if (job.command.includes("\n")) {
-					yamlLines.push("    command: |");
-					for (const cmdLine of job.command.split("\n")) {
-						yamlLines.push(`      ${cmdLine}`);
-					}
-				} else {
-					yamlLines.push(`    command: ${job.command}`);
-				}
-				if (job.cwd && job.cwd !== ".") {
-					yamlLines.push(`    cwd: ${job.cwd}`);
-				}
-				if (job.timeout > 0) {
-					yamlLines.push(`    timeout: ${job.timeout}`);
-				}
-				if (job.retry.maxAttempts > 0) {
-					yamlLines.push("    retry:");
-					yamlLines.push(`      maxAttempts: ${job.retry.maxAttempts}`);
-					if (job.retry.baseDelay !== 30) {
-						yamlLines.push(`      baseDelay: ${job.retry.baseDelay}`);
-					}
-				}
-				if (job.description) {
-					yamlLines.push(`    description: ${job.description}`);
-				}
-				if (job.tags.length > 0) {
-					yamlLines.push(`    tags: [${job.tags.join(", ")}]`);
-				}
-				if (!job.enabled) {
-					yamlLines.push("    enabled: false");
-				}
-				if (Object.keys(job.env).length > 0) {
-					yamlLines.push("    env:");
-					for (const [k, v] of Object.entries(job.env)) {
-						yamlLines.push(`      ${k}: ${v}`);
-					}
-				}
-				// Export alert config if present
-				const alertConfig = store.getJobAlert(job.id);
-				if (alertConfig?.webhooks) {
-					for (const wh of alertConfig.webhooks) {
-						const events = wh.events;
-						if (events.includes("failed") && events.includes("timeout") && events.length === 2) {
-							yamlLines.push(`    on_failure: ${wh.url}`);
-						} else if (events.includes("success") && events.length === 1) {
-							yamlLines.push(`    on_success: ${wh.url}`);
-						} else if (
-							events.includes("success") &&
-							events.includes("failed") &&
-							events.includes("timeout")
-						) {
-							yamlLines.push(`    on_complete: ${wh.url}`);
-						}
-					}
-				}
-			}
-
-			console.log(yamlLines.join("\n"));
-			store.close();
-			break;
 		}
 
 		case "help":
 		case "--help":
 		case "-h":
 			usage();
-			break;
+			return 0;
 
 		default:
 			console.error(`Unknown command: ${command}`);
 			usage();
-			process.exit(1);
+			return 1;
+	}
+}
+
+async function main(): Promise<void> {
+	const { command, flags, positional } = parseArgs(process.argv.slice(2));
+	const exitCode = await runCommand(command, flags, positional);
+	if (exitCode !== 0) {
+		process.exit(exitCode);
 	}
 }
 
