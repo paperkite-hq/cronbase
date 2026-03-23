@@ -19,6 +19,7 @@
 
 <p align="center">
   <a href="https://github.com/paperkite-hq/cronbase/actions/workflows/ci.yml"><img src="https://github.com/paperkite-hq/cronbase/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/coverage-90%25-brightgreen" alt="Coverage: 90%">
   <a href="https://github.com/paperkite-hq/cronbase/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
   <a href="https://bun.sh"><img src="https://img.shields.io/badge/runtime-Bun-f9f1e1?logo=bun" alt="Powered by Bun"></a>
 </p>
