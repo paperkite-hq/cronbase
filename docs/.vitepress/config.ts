@@ -4,7 +4,9 @@ export default defineConfig({
 	title: "cronbase",
 	description: "Beautiful self-hosted cron job manager with web dashboard",
 	base: "/cronbase/",
+	head: [["link", { rel: "icon", href: "/cronbase/favicon.ico" }]],
 	themeConfig: {
+		logo: "/logo.png",
 		nav: [
 			{ text: "Guide", link: "/guide/getting-started" },
 			{ text: "Reference", link: "/reference/cli" },
