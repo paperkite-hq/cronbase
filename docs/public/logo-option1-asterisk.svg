@@ -1,0 +1,20 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#3730a3"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <!-- 6-armed asterisk: the cron wildcard * * * * * symbol -->
+  <!-- Arms at 0°, 60°, 120° from vertical, r=172 from center (256,256) -->
+  <!-- Arm 1 (vertical) -->
+  <line x1="256" y1="84" x2="256" y2="428" stroke="white" stroke-width="52" stroke-linecap="round"/>
+  <!-- Arm 2 (60° right): endpoint at (256+172*sin60, 256-172*cos60) = (405,170) and (107,342) -->
+  <line x1="405" y1="170" x2="107" y2="342" stroke="white" stroke-width="52" stroke-linecap="round"/>
+  <!-- Arm 3 (120° / 60° left): symmetric -->
+  <line x1="107" y1="170" x2="405" y2="342" stroke="white" stroke-width="52" stroke-linecap="round"/>
+  <!-- Center ring -->
+  <circle cx="256" cy="256" r="42" fill="#3730a3"/>
+  <circle cx="256" cy="256" r="24" fill="white"/>
+</svg>
