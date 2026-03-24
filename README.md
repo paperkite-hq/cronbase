@@ -554,17 +554,17 @@ If you bind cronbase to a non-localhost address (e.g., `--host 0.0.0.0`) without
 
 ## Comparison
 
-| Feature | cronbase | crontab | Ofelia | dkron | healthchecks.io |
-|---|---|---|---|---|---|
-| Web dashboard | Yes | No | No | Yes | Yes |
-| Job execution | Yes | Yes | Yes (Docker) | Yes | No (monitoring only) |
-| Execution history | Yes | No | Limited | Yes | No |
-| stdout/stderr capture | Yes | Via mail | Docker logs | Limited | No |
-| Retry with backoff | Yes | No | No | Yes | No |
-| Webhook alerts | Yes | No | Slack only | Yes | Yes |
-| Config file | YAML/JSON | crontab | Docker labels | JSON | N/A |
-| Dependencies | None (Bun) | None | Docker | etcd/Consul | SaaS |
-| Self-hosted | Yes | Yes | Yes | Yes | Optional |
+| Feature | cronbase | crontab | Supercronic | Ofelia | dkron | healthchecks.io |
+|---|---|---|---|---|---|---|
+| Web dashboard | Yes | No | No | No | Yes | Yes |
+| Job execution | Yes | Yes | Yes | Yes (Docker) | Yes | No (monitoring only) |
+| Execution history | Yes | No | No | Limited | Yes | No |
+| stdout/stderr capture | Yes | Via mail | stdout/stderr | Docker logs | Limited | No |
+| Retry with backoff | Yes | No | No | No | Yes | No |
+| Webhook alerts | Yes | No | No | Slack only | Yes | Yes |
+| Config file | YAML/JSON | crontab | crontab | Docker labels | JSON | N/A |
+| Dependencies | None (Bun) | None | None (Go binary) | Docker | etcd/Consul | SaaS |
+| Self-hosted | Yes | Yes | Yes | Yes | Yes | Optional |
 
 ## Programmatic API
 

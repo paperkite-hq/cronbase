@@ -4,17 +4,17 @@ Choosing a cron job tool depends on your environment, scale, and what you need b
 
 ## Quick comparison
 
-| Feature | cronbase | crontab | Ofelia | dkron | healthchecks.io |
-|---|---|---|---|---|---|
-| Web dashboard | Yes | No | No | Yes | Yes |
-| Job execution | Yes | Yes | Yes (Docker) | Yes | No (monitoring only) |
-| Execution history | Yes | No | Limited | Yes | No |
-| stdout/stderr capture | Yes | Via mail | Docker logs | Limited | No |
-| Retry with backoff | Yes | No | No | Yes | No |
-| Webhook alerts | Yes | No | Slack only | Yes | Yes |
-| Config file | YAML/JSON | crontab | Docker labels | JSON | N/A |
-| Dependencies | None (Bun) | None | Docker | etcd/Consul | SaaS |
-| Self-hosted | Yes | Yes | Yes | Yes | Optional |
+| Feature | cronbase | crontab | Supercronic | Ofelia | dkron | healthchecks.io |
+|---|---|---|---|---|---|---|
+| Web dashboard | Yes | No | No | No | Yes | Yes |
+| Job execution | Yes | Yes | Yes | Yes (Docker) | Yes | No (monitoring only) |
+| Execution history | Yes | No | No | Limited | Yes | No |
+| stdout/stderr capture | Yes | Via mail | stdout/stderr | Docker logs | Limited | No |
+| Retry with backoff | Yes | No | No | No | Yes | No |
+| Webhook alerts | Yes | No | No | Slack only | Yes | Yes |
+| Config file | YAML/JSON | crontab | crontab | Docker labels | JSON | N/A |
+| Dependencies | None (Bun) | None | None (Go binary) | Docker | etcd/Consul | SaaS |
+| Self-hosted | Yes | Yes | Yes | Yes | Yes | Optional |
 
 ## cronbase vs crontab
 
@@ -29,6 +29,29 @@ Where crontab falls short:
 - **Awkward configuration.** `crontab -e` works, but managing cron across multiple servers means SSH and manual editing. cronbase uses config-as-code (YAML/JSON), so you can version your job definitions in git.
 
 **When to stay with crontab:** You have a single server with a handful of jobs, you're comfortable with syslog, and you don't need alerting or execution history. See the [migration guide](/guide/migration) when you're ready to switch.
+
+## cronbase vs Supercronic
+
+[Supercronic](https://github.com/aptible/supercronic) is a cron runner built specifically for containers. Unlike the system cron daemon, it logs to stdout/stderr (so container orchestrators can collect the logs), handles `SIGTERM` gracefully for clean shutdowns, and reads a standard crontab file. It's the standard recommendation for "how do I run cron jobs in a Docker container" across Docker, Kubernetes, and Heroku documentation.
+
+**Where Supercronic is a better fit:**
+
+- You want a minimal, no-config cron runner inside a container alongside your main process.
+- Your jobs are already defined in a crontab file and you don't want to change the format.
+- You only need execution — no dashboard, no history, no alerting.
+- You want the smallest possible image footprint (Supercronic is a single Go binary, ~7 MB).
+
+**Where cronbase has the edge:**
+
+- **Visibility.** Supercronic streams job output to container logs — useful if you're already aggregating logs, but there's no dashboard to see what ran, what failed, or what the output was. cronbase records every execution with stdout/stderr, duration, and exit code, accessible via a web UI or CLI.
+- **Alerting.** Supercronic has no alerting — if a job fails, you'll only know if you're watching the logs. cronbase sends Slack, Discord, or webhook notifications when jobs fail, time out, or complete.
+- **Retry logic.** Supercronic doesn't retry failed jobs. cronbase retries with configurable exponential backoff.
+- **Dynamic job management.** Supercronic requires a restart to pick up crontab changes. cronbase lets you add, edit, enable, disable, and trigger jobs at runtime via the dashboard, CLI, or REST API — no restarts.
+- **Run outside containers.** Supercronic is designed for containers. cronbase runs as a native process on any server, in Docker, or as a TypeScript library.
+
+**When to use Supercronic:** You're building a Docker image and want a lightweight, container-native cron runner with no extra dependencies or UI. Supercronic is the right choice when simplicity is more important than observability.
+
+**When to migrate to cronbase:** Your jobs are running in production, failures are going undetected, and you're tired of `kubectl logs` or `docker logs` as your only debugging tool.
 
 ## cronbase vs Ofelia
 
@@ -106,6 +129,7 @@ cronbase isn't the right choice for every situation:
 |---|---|
 | Single server, want visibility into cron jobs | **cronbase** |
 | Replacing crontab with something better | **cronbase** |
+| Lightweight cron runner inside a container | Supercronic |
 | Docker-only, jobs defined as container labels | Ofelia |
 | Multi-node cluster with distributed coordination | dkron |
 | Monitoring existing jobs (not running them) | healthchecks.io |
