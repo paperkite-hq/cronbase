@@ -760,3 +760,72 @@ describe("validateConfigFile", () => {
 		expect(errors).toHaveLength(0);
 	});
 });
+
+describe("parseSimpleYaml — quote and comment edge cases", () => {
+	test("preserves # inside double-quoted string (not a comment)", () => {
+		const yaml = `
+jobs:
+  - name: tag-job
+    schedule: "@daily"
+    command: "echo #hashtag"
+`;
+		const result = parseSimpleYaml(yaml);
+		expect(result.jobs?.[0].command).toBe("echo #hashtag");
+	});
+
+	test("preserves # inside single-quoted string (not a comment)", () => {
+		const yaml = `
+jobs:
+  - name: tag-job
+    schedule: "@daily"
+    command: 'echo #hashtag'
+`;
+		const result = parseSimpleYaml(yaml);
+		expect(result.jobs?.[0].command).toBe("echo #hashtag");
+	});
+
+	test("strips # comment outside quotes", () => {
+		const yaml = `
+jobs:
+  - name: my-job # this is a comment
+    schedule: "@daily"
+    command: echo hello
+`;
+		const result = parseSimpleYaml(yaml);
+		expect(result.jobs?.[0].name).toBe("my-job");
+	});
+
+	test("handles double quotes inside single-quoted string", () => {
+		const yaml = `
+jobs:
+  - name: quote-job
+    schedule: "@daily"
+    command: 'echo "hello world"'
+`;
+		const result = parseSimpleYaml(yaml);
+		expect(result.jobs?.[0].command).toBe('echo "hello world"');
+	});
+
+	test("handles single quote inside double-quoted string", () => {
+		const yaml = `
+jobs:
+  - name: apostrophe-job
+    schedule: "@daily"
+    command: "echo it's working"
+`;
+		const result = parseSimpleYaml(yaml);
+		expect(result.jobs?.[0].command).toBe("echo it's working");
+	});
+
+	test("unquoted value with trailing comment is trimmed correctly", () => {
+		const yaml = `
+jobs:
+  - name: trimmed
+    schedule: "@daily"
+    command: echo hello # run every day
+`;
+		const result = parseSimpleYaml(yaml);
+		// The command value should stop before the comment
+		expect(result.jobs?.[0].command).toBe("echo hello");
+	});
+});
