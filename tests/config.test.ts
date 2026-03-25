@@ -614,9 +614,9 @@ describe("loadConfigFile alert clearing", () => {
 		// Verify alert exists
 		const job = store.getJobByName("alert-clear-test");
 		expect(job).toBeTruthy();
-		const alert = store.getJobAlert(job!.id);
+		const alert = store.getJobAlert(job?.id ?? 0);
 		expect(alert).toBeTruthy();
-		expect(alert!.webhooks).toHaveLength(1);
+		expect(alert?.webhooks).toHaveLength(1);
 
 		// Second load: same job without webhook — alerts should be cleared
 		writeFileSync(
@@ -629,7 +629,7 @@ describe("loadConfigFile alert clearing", () => {
 		);
 		loadConfigFile(TEST_CONFIG, store);
 
-		const alertAfter = store.getJobAlert(job!.id);
+		const alertAfter = store.getJobAlert(job?.id ?? 0);
 		// Alert should be removed (null or empty webhooks)
 		expect(alertAfter).toBeNull();
 

@@ -155,6 +155,57 @@ export function statusIcon(status: string | null): string {
 }
 
 /**
+ * Quote a string for safe embedding in YAML.
+ * Uses double-quoted scalars when the value contains characters that would
+ * be misinterpreted by a YAML parser (colons, hashes, braces, etc.).
+ */
+export function yamlQuote(value: string): string {
+	// Characters that require quoting in unquoted YAML scalars
+	const needsQuoting =
+		value === "" ||
+		/[:#{}[\],!?|>*&%@`"\\]/.test(value) ||
+		/^[-?:,[\]{}#&*!|>'"%@`]/.test(value) ||
+		/^(true|false|null|~|yes|no|on|off)$/i.test(value) ||
+		/^\d/.test(value) ||
+		value !== value.trimEnd();
+	if (!needsQuoting) return value;
+	// Double-quoted scalar: escape backslashes and double-quotes
+	return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * Convert alert webhooks to the config shorthand fields (on_failure, on_success, on_complete).
+ * Returns only webhooks that map cleanly to a single shorthand key.
+ * Complex custom event sets are omitted (they require the API to configure).
+ */
+function alertsToShorthand(
+	webhooks: Array<{ url: string; events: string[] }>,
+): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const wh of webhooks) {
+		const events = wh.events;
+		if (
+			events.includes("failed") &&
+			events.includes("timeout") &&
+			events.length === 2 &&
+			!result.on_failure
+		) {
+			result.on_failure = wh.url;
+		} else if (events.includes("success") && events.length === 1 && !result.on_success) {
+			result.on_success = wh.url;
+		} else if (
+			events.includes("success") &&
+			events.includes("failed") &&
+			events.includes("timeout") &&
+			!result.on_complete
+		) {
+			result.on_complete = wh.url;
+		}
+	}
+	return result;
+}
+
+/**
  * Parse a crontab line into a schedule and command.
  * Skips comments, empty lines, and variable assignments (VAR=value).
  */
@@ -773,7 +824,10 @@ jobs:
 							if (!job.enabled) entry.enabled = false;
 							if (Object.keys(job.env).length > 0) entry.env = job.env;
 							const alertConfig = store.getJobAlert(job.id);
-							if (alertConfig?.webhooks?.length) entry.alerts = alertConfig.webhooks;
+							if (alertConfig?.webhooks?.length) {
+								const shortcuts = alertsToShorthand(alertConfig.webhooks);
+								Object.assign(entry, shortcuts);
+							}
 							return entry;
 						}),
 					};
@@ -792,10 +846,10 @@ jobs:
 							yamlLines.push(`      ${cmdLine}`);
 						}
 					} else {
-						yamlLines.push(`    command: ${job.command}`);
+						yamlLines.push(`    command: ${yamlQuote(job.command)}`);
 					}
 					if (job.cwd && job.cwd !== ".") {
-						yamlLines.push(`    cwd: ${job.cwd}`);
+						yamlLines.push(`    cwd: ${yamlQuote(job.cwd)}`);
 					}
 					if (job.timeout > 0) {
 						yamlLines.push(`    timeout: ${job.timeout}`);
@@ -808,7 +862,7 @@ jobs:
 						}
 					}
 					if (job.description) {
-						yamlLines.push(`    description: ${job.description}`);
+						yamlLines.push(`    description: ${yamlQuote(job.description)}`);
 					}
 					if (job.tags.length > 0) {
 						yamlLines.push(`    tags: [${job.tags.join(", ")}]`);
@@ -819,25 +873,15 @@ jobs:
 					if (Object.keys(job.env).length > 0) {
 						yamlLines.push("    env:");
 						for (const [k, v] of Object.entries(job.env)) {
-							yamlLines.push(`      ${k}: ${v}`);
+							yamlLines.push(`      ${k}: ${yamlQuote(v)}`);
 						}
 					}
 					// Export alert config if present
 					const alertConfig = store.getJobAlert(job.id);
-					if (alertConfig?.webhooks) {
-						for (const wh of alertConfig.webhooks) {
-							const events = wh.events;
-							if (events.includes("failed") && events.includes("timeout") && events.length === 2) {
-								yamlLines.push(`    on_failure: ${wh.url}`);
-							} else if (events.includes("success") && events.length === 1) {
-								yamlLines.push(`    on_success: ${wh.url}`);
-							} else if (
-								events.includes("success") &&
-								events.includes("failed") &&
-								events.includes("timeout")
-							) {
-								yamlLines.push(`    on_complete: ${wh.url}`);
-							}
+					if (alertConfig?.webhooks?.length) {
+						const shortcuts = alertsToShorthand(alertConfig.webhooks);
+						for (const [key, url] of Object.entries(shortcuts)) {
+							yamlLines.push(`    ${key}: ${url}`);
 						}
 					}
 				}

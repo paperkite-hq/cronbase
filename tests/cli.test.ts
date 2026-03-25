@@ -9,6 +9,7 @@ import {
 	parseCrontabLine,
 	runCommand,
 	statusIcon,
+	yamlQuote,
 } from "../src/cli";
 
 // CLI tests spawn Bun subprocesses. Under load (e.g., pre-commit hooks running
@@ -35,6 +36,45 @@ async function runCli(
 	const exitCode = await proc.exited;
 	return { stdout, stderr, exitCode };
 }
+
+describe("yamlQuote", () => {
+	test("plain strings are returned as-is", () => {
+		expect(yamlQuote("echo hello")).toBe("echo hello");
+		expect(yamlQuote("backup.sh")).toBe("backup.sh");
+	});
+
+	test("strings with colons are quoted", () => {
+		const result = yamlQuote("echo hello: world");
+		expect(result).toMatch(/^"/);
+		expect(result).toContain(":");
+	});
+
+	test("strings with hash characters are quoted", () => {
+		const result = yamlQuote("echo # not a comment");
+		expect(result).toMatch(/^"/);
+	});
+
+	test("strings with shell redirect are quoted", () => {
+		const result = yamlQuote("echo foo > /tmp/bar");
+		expect(result).toMatch(/^"/);
+	});
+
+	test("YAML boolean-like values are quoted", () => {
+		expect(yamlQuote("true")).toMatch(/^"/);
+		expect(yamlQuote("false")).toMatch(/^"/);
+		expect(yamlQuote("yes")).toMatch(/^"/);
+		expect(yamlQuote("null")).toMatch(/^"/);
+	});
+
+	test("double-quotes inside strings are escaped", () => {
+		const result = yamlQuote('say "hello"');
+		expect(result).toBe('"say \\"hello\\""');
+	});
+
+	test("empty string is quoted", () => {
+		expect(yamlQuote("")).toBe('""');
+	});
+});
 
 describe("parseArgs", () => {
 	test("parses basic flags", () => {
@@ -1402,5 +1442,56 @@ describe("runCommand (in-process)", () => {
 	test("validate missing file returns 1", async () => {
 		const code = await runCommand("validate", { path: "/nonexistent/cronbase.yaml" }, []);
 		expect(code).toBe(1);
+	});
+
+	describe("export round-trip fidelity", () => {
+		test("command with YAML special chars is properly quoted in export", async () => {
+			const dir = mkdtempSync(join(tmpdir(), "cronbase-export-rt-"));
+			const db = join(dir, "cronbase.db");
+			// Command contains colon and redirect — both break unquoted YAML
+			await runCli([
+				"add",
+				"--name",
+				"tricky",
+				"--schedule",
+				"* * * * *",
+				"--command",
+				"echo hello: world > /tmp/out",
+				"--db",
+				db,
+			]);
+			const { stdout } = await runCli(["export", "--db", db]);
+			// The exported YAML should have the command properly quoted
+			expect(stdout).toContain('"echo hello: world > /tmp/out"');
+			// Validate the exported YAML is parseable
+			const configPath = join(dir, "exported.yaml");
+			await Bun.write(configPath, stdout);
+			const { exitCode } = await runCli(["validate", "--path", configPath]);
+			expect(exitCode).toBe(0);
+			rmSync(dir, { recursive: true });
+		});
+
+		test("export --json produces importable config (on_failure not alerts)", async () => {
+			const dir = mkdtempSync(join(tmpdir(), "cronbase-json-rt-"));
+			const db = join(dir, "cronbase.db");
+			await runCli([
+				"add",
+				"--name",
+				"alertjob",
+				"--schedule",
+				"* * * * *",
+				"--command",
+				"echo hi",
+				"--db",
+				db,
+			]);
+			const { stdout } = await runCli(["export", "--json", "--db", db]);
+			const parsed = JSON.parse(stdout) as { jobs: Array<Record<string, unknown>> };
+			// Should not contain 'alerts' key — use on_failure/on_success/on_complete instead
+			for (const job of parsed.jobs) {
+				expect(job).not.toHaveProperty("alerts");
+			}
+			rmSync(dir, { recursive: true });
+		});
 	});
 });

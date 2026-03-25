@@ -428,7 +428,7 @@ describe("updateJob field clearing", () => {
 		store.updateJob(job.id, { env: {} });
 		const updated = store.getJob(job.id);
 		expect(updated).not.toBeNull();
-		expect(Object.keys(updated!.env!).length).toBe(0);
+		expect(Object.keys(updated?.env ?? {}).length).toBe(0);
 	});
 
 	test("explicitly setting tags to empty array clears tags", () => {
