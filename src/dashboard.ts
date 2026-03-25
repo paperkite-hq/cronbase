@@ -5,12 +5,11 @@
 /** Returns the full dashboard HTML as a string. Injects API token if configured. */
 export function getDashboardHtml(apiToken?: string): string {
 	if (apiToken) {
-		// Inject the token into the dashboard JS so API calls include Authorization header.
-		// Use JSON.stringify for safe script-context escaping (handles </script>, quotes, etc.)
-		return DASHBOARD_HTML.replace(
-			"const API_TOKEN = null;",
-			`const API_TOKEN = ${JSON.stringify(apiToken)};`,
-		);
+		// JSON.stringify produces a quoted string safe for JS context, but does NOT escape
+		// </script> — a token containing that sequence would break out of the script tag.
+		// Replace </ with <\/ so the string is safe inside HTML <script> blocks.
+		const safeToken = JSON.stringify(apiToken).replace(/<\//g, "<\\/");
+		return DASHBOARD_HTML.replace("const API_TOKEN = null;", `const API_TOKEN = ${safeToken};`);
 	}
 	return DASHBOARD_HTML;
 }

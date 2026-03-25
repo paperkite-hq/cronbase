@@ -1,7 +1,7 @@
 <p align="center">
   <img src="docs/public/logo.png" width="96" height="96" alt="cronbase logo" />
   <h1 align="center">cronbase</h1>
-  <p align="center">Beautiful self-hosted cron job manager with web dashboard</p>
+  <p align="center">Open-source self-hosted cron job manager with web dashboard</p>
 </p>
 
 <p align="center">
