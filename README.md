@@ -97,35 +97,45 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 
 ## Quick Start
 
+**With Docker** (no prerequisites):
+
 ```bash
-# Install Bun if you haven't already
-curl -fsSL https://bun.sh/install | bash
+docker run -d \
+  --name cronbase \
+  -p 7433:7433 \
+  -v cronbase-data:/data \
+  ghcr.io/paperkite-hq/cronbase
+```
 
-# Clone and start
-git clone https://github.com/paperkite-hq/cronbase.git
-cd cronbase
-bun install
+Open **http://localhost:7433** — the dashboard is live.
 
-# Add your first job
-bun run src/cli.ts add \
+Add your first job:
+
+```bash
+docker exec cronbase cronbase add \
   --name "hello" \
   --schedule "*/5 * * * *" \
   --command "echo Hello from cronbase!"
-
-# Start the scheduler + web dashboard
-bun run src/cli.ts start
-# → Open http://localhost:7433
 ```
 
-## Installation
+Or use Docker Compose for a persistent setup:
 
-### From source
+```bash
+curl -O https://raw.githubusercontent.com/paperkite-hq/cronbase/main/docker-compose.yml
+docker compose up -d
+```
+
+**With Bun** (from source):
 
 ```bash
 git clone https://github.com/paperkite-hq/cronbase.git
-cd cronbase
-bun install
+cd cronbase && bun install
+
+cronbase add --name "hello" --schedule "*/5 * * * *" --command "echo Hello!"
+cronbase start   # → http://localhost:7433
 ```
+
+## Installation
 
 ### Docker
 
@@ -142,6 +152,14 @@ Or with Docker Compose:
 ```bash
 curl -O https://raw.githubusercontent.com/paperkite-hq/cronbase/main/docker-compose.yml
 docker compose up -d
+```
+
+### From source
+
+```bash
+git clone https://github.com/paperkite-hq/cronbase.git
+cd cronbase
+bun install
 ```
 
 ## Configuration
