@@ -727,6 +727,7 @@ describe("CLI commands", () => {
 		expect(stdout).toContain(`✓ Created ${configPath}`);
 		expect(stdout).toContain("Next steps:");
 		expect(stdout).toContain("cronbase start --config");
+		expect(stdout).toContain("CRONBASE_API_TOKEN");
 		// Verify file contents
 		const content = await Bun.file(configPath).text();
 		expect(content).toContain("jobs:");
@@ -734,6 +735,8 @@ describe("CLI commands", () => {
 		expect(content).toContain("health-check");
 		expect(content).toContain("cleanup-logs");
 		expect(content).toContain("weekly-report");
+		expect(content).toContain("CRONBASE_API_TOKEN");
+		expect(content).toContain("on_failure");
 		rmSync(dir, { recursive: true });
 	});
 

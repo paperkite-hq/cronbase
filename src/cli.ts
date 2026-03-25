@@ -287,6 +287,15 @@ export async function runCommand(
 
 			const configContent = `# cronbase configuration
 # Documentation: https://github.com/paperkite-hq/cronbase
+#
+# Security: set CRONBASE_API_TOKEN to protect the API and dashboard:
+#   export CRONBASE_API_TOKEN=$(openssl rand -hex 32)
+#
+# Alerting: add on_failure / on_success to any job to get notified when it
+# fails or succeeds. Paste a Slack, Discord, or any HTTP webhook URL and
+# cronbase will POST a JSON payload with job details. Recommended for all
+# jobs that run unattended — alerting is what turns a cron job into a
+# monitored process.
 
 jobs:
   # Database backup — runs nightly at 2 AM
@@ -298,6 +307,7 @@ jobs:
       maxAttempts: 2
       baseDelay: 60
     description: Nightly database backup
+    # Uncomment and fill in your webhook URL to get alerted on failure:
     # on_failure: https://hooks.slack.com/services/T.../B.../xxx
 
   # Health check — every 5 minutes
@@ -306,6 +316,7 @@ jobs:
     command: curl -sf http://localhost:3000/health || exit 1
     timeout: 30
     description: Application health check
+    # Uncomment and fill in your webhook URL to get alerted on failure:
     # on_failure: https://discord.com/api/webhooks/xxx/yyy
 
   # Log cleanup — daily at midnight
@@ -320,6 +331,7 @@ jobs:
     command: ./scripts/generate-report.sh
     timeout: 600
     description: Generate and email weekly report
+    # Uncomment and fill in your webhook URL to get notified on success:
     # on_success: https://hooks.slack.com/services/T.../B.../xxx
 `;
 
@@ -328,9 +340,11 @@ jobs:
 			console.log();
 			console.log("Next steps:");
 			console.log(`  1. Edit ${outputPath} to define your jobs`);
-			console.log(`  2. Start the scheduler:`);
+			console.log(`  2. (Recommended) Set an API token to protect the dashboard:`);
+			console.log(`     export CRONBASE_API_TOKEN=$(openssl rand -hex 32)`);
+			console.log(`  3. Start the scheduler:`);
 			console.log(`     cronbase start --config ${outputPath}`);
-			console.log(`  3. Open http://localhost:7433 to view the dashboard`);
+			console.log(`  4. Open http://localhost:7433 to view the dashboard`);
 			return 0;
 		}
 
