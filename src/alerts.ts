@@ -5,6 +5,7 @@
  * Includes pre-built formatters for Slack and Discord.
  */
 
+import { logger } from "./logger";
 import type { Store } from "./store";
 import type { AlertConfig, Execution, ExecutionStatus, Job } from "./types";
 
@@ -218,29 +219,27 @@ export async function fireAlerts(
 			if (attempt > 0) {
 				const delay = Math.min(baseDelay * 2 ** (attempt - 1), MAX_WEBHOOK_BACKOFF_MS);
 				await new Promise((resolve) => setTimeout(resolve, delay));
-				console.log(
-					`[cronbase] Retrying webhook for ${job.name} (attempt ${attempt + 1}/${maxAttempts})`,
-				);
+				logger.info(`Retrying webhook for ${job.name} (attempt ${attempt + 1}/${maxAttempts})`);
 			}
 
 			try {
 				delivered = await sendWebhook(webhook.url, body);
 				if (delivered) break;
 
-				console.error(
-					`[cronbase] Alert webhook non-OK response for ${job.name} (attempt ${attempt + 1}/${maxAttempts})`,
+				logger.error(
+					`Alert webhook non-OK response for ${job.name} (attempt ${attempt + 1}/${maxAttempts})`,
 				);
 			} catch (error) {
-				console.error(
-					`[cronbase] Alert webhook error for ${job.name} (attempt ${attempt + 1}/${maxAttempts}):`,
-					error instanceof Error ? error.message : error,
+				logger.error(
+					`Alert webhook error for ${job.name} (attempt ${attempt + 1}/${maxAttempts})`,
+					{ error: error instanceof Error ? error.message : String(error) },
 				);
 			}
 		}
 
 		if (!delivered) {
-			console.error(
-				`[cronbase] Alert webhook permanently failed for ${job.name} after ${maxAttempts} attempt(s): ${webhook.url}`,
+			logger.error(
+				`Alert webhook permanently failed for ${job.name} after ${maxAttempts} attempt(s): ${webhook.url}`,
 			);
 		}
 	}

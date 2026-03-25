@@ -226,7 +226,7 @@ export async function executeJob(job: Job, store: Store): Promise<ExecutionResul
 	const lastExec = store.getExecutionById(lastExecId);
 	if (lastExec) {
 		processAlerts(job, lastExec, store).catch((e) =>
-			console.error(`[cronbase] Alert error for ${job.name}:`, e),
+			logger.error(`Alert error for ${job.name}:`, { error: String(e) }),
 		);
 	}
 	return finalResult;
