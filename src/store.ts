@@ -5,6 +5,7 @@
 
 import { Database } from "bun:sqlite";
 import { getNextRun, parseCron } from "./cron";
+import { logger } from "./logger";
 import type { AlertConfig, Execution, ExecutionStatus, Job, JobConfig } from "./types";
 import { DEFAULT_RETRY, VERSION } from "./types";
 
@@ -183,8 +184,8 @@ export class Store {
 		} catch (e) {
 			// Log a warning — the job's next_run will be set to null, effectively disabling it.
 			// This can happen if the schedule was manually corrupted in the database.
-			console.warn(
-				`[cronbase] Failed to compute next run for "${job.name}" (schedule: ${job.schedule}): ${e instanceof Error ? e.message : e}`,
+			logger.warn(
+				`Failed to compute next run for "${job.name}" (schedule: ${job.schedule}): ${e instanceof Error ? e.message : e}`,
 			);
 		}
 
@@ -230,8 +231,8 @@ export class Store {
 					const parsed = parseCron(schedule);
 					nextRun = toSqliteDatetime(getNextRun(parsed));
 				} catch (e) {
-					console.warn(
-						`[cronbase] Failed to compute next run for "${name}" (schedule: ${schedule}): ${e instanceof Error ? e.message : e}`,
+					logger.warn(
+						`Failed to compute next run for "${name}" (schedule: ${schedule}): ${e instanceof Error ? e.message : e}`,
 					);
 				}
 			} else {
@@ -291,8 +292,8 @@ export class Store {
 				const parsed = parseCron(job.schedule);
 				nextRun = toSqliteDatetime(getNextRun(parsed));
 			} catch (e) {
-				console.warn(
-					`[cronbase] Failed to compute next run for "${job.name}" (schedule: ${job.schedule}): ${e instanceof Error ? e.message : e}`,
+				logger.warn(
+					`Failed to compute next run for "${job.name}" (schedule: ${job.schedule}): ${e instanceof Error ? e.message : e}`,
 				);
 			}
 		}
