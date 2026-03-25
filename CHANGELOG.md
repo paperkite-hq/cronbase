@@ -4,6 +4,39 @@ All notable changes to cronbase will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.2.0] — 2026-03-25
+
+### Added
+
+- **`--json` flag** — machine-readable output for all CLI commands (pipe-friendly scripts and monitoring)
+- **Docker-first Quick Start** — README leads with a one-liner `docker run`; Bun-from-source path moved to secondary
+- **GHCR Docker image** — `ghcr.io/paperkite-hq/cronbase` published on every release via GitHub Actions
+- **Deployment guides** — step-by-step setup for Raspberry Pi, Kubernetes (Deployment + CronJob), and Proxmox LXC
+- **Supercronic comparison** — added to the comparison table with a dedicated migration guide
+- **Coverage badge** — CI-generated shields.io badge in README; CI enforces a minimum coverage threshold
+- **Dashboard tests** — Playwright tests for dashboard UI; YAML edge-case tests for import/export
+- **Clock logo and favicon** — analog clock SVG used in README and docs site
+- **Security section** — README documents API token auth, SSRF protection, and CORS restriction
+- **Docker healthcheck** — `docker-compose.yml` now includes a `/health` endpoint check
+- **GitHub templates** — issue and pull-request templates for contributor experience
+- **Dependabot + `.editorconfig`** — automated dependency updates and consistent editor formatting
+
+### Fixed
+
+- Escape `</script>` in API token injection to prevent XSS in dashboard bootstrap
+- Route all log output through the structured logger (previously some paths wrote directly to stderr)
+- Safe YAML export quoting — special characters and multi-line values now round-trip correctly
+- `PATH`, `HOME`, `LANG`, `LC_ALL` allowed as env overrides; IPv6 ULA addresses blocked in SSRF check
+- Handle closed database gracefully during shutdown (previously threw on in-flight queries)
+- Docker `VOLUME` declaration ordering fix — `chown` now runs before the volume mount
+- Docker `workflow_dispatch` checks out `main` instead of a stale tag
+- CLI test timeout increased to prevent flaky CI failures
+
+### Changed
+
+- Extracted `runCommand()` helper for in-process CLI testing; CLI test coverage improved from 17% → 74%
+- Init wizard clarified `CRONBASE_API_TOKEN` guidance and webhook alerting documentation
+
 ## [0.1.0] — 2026-03-18
 
 First public release.
@@ -30,4 +63,5 @@ First public release.
 - **Security** — API token auth, timing-safe comparison, SSRF protection for webhooks, CORS restriction, input validation
 - **Programmatic API** — `Scheduler` and `Store` exports for library usage
 
+[0.2.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.2.0
 [0.1.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.1.0
