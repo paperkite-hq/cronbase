@@ -2,21 +2,9 @@
 
 cronbase is a self-hosted cron job manager that replaces `crontab -e` with a modern web dashboard. It runs your jobs, captures output, tracks history, and sends alerts when things go wrong.
 
-## Prerequisites
+## Quick Start with Docker
 
-- [Bun](https://bun.sh/) v1.0 or later
-
-## Installation
-
-### From source
-
-```bash
-git clone https://github.com/paperkite-hq/cronbase.git
-cd cronbase
-bun install
-```
-
-### Docker
+The fastest way to try cronbase — no prerequisites needed:
 
 ```bash
 docker run -d \
@@ -26,38 +14,22 @@ docker run -d \
   ghcr.io/paperkite-hq/cronbase
 ```
 
-## Add your first job
+Open **http://localhost:7433** — the dashboard is live.
+
+Add your first job:
 
 ```bash
-cronbase add \
+docker exec cronbase cronbase add \
   --name "hello" \
   --schedule "*/5 * * * *" \
   --command "echo Hello from cronbase!"
 ```
 
-This creates a job named `hello` that runs `echo Hello from cronbase!` every 5 minutes.
-
-## Start the scheduler
+Trigger it immediately:
 
 ```bash
-cronbase start
+docker exec cronbase cronbase run hello
 ```
-
-This starts:
-- The **scheduler** — polls for due jobs and executes them
-- The **web dashboard** — serves at `http://localhost:7433`
-
-Open your browser to see the dashboard with your job listed.
-
-## Test it manually
-
-Don't want to wait 5 minutes? Trigger it now:
-
-```bash
-cronbase run hello
-```
-
-You'll see the output immediately:
 
 ```
 Running: hello (echo Hello from cronbase!)
@@ -67,7 +39,37 @@ Running: hello (echo Hello from cronbase!)
 Hello from cronbase!
 ```
 
+Or use Docker Compose for a persistent setup:
+
+```bash
+curl -O https://raw.githubusercontent.com/paperkite-hq/cronbase/main/docker-compose.yml
+docker compose up -d
+```
+
+## Install from source
+
+If you prefer running directly with [Bun](https://bun.sh/) (v1.0 or later):
+
+```bash
+git clone https://github.com/paperkite-hq/cronbase.git
+cd cronbase && bun install
+
+cronbase add --name "hello" --schedule "*/5 * * * *" --command "echo Hello!"
+cronbase start   # → http://localhost:7433
+```
+
+## Explore the dashboard
+
+Once cronbase is running, open **http://localhost:7433** in your browser. The dashboard shows:
+
+- **Job list** — all registered jobs with status, schedule, and next run time
+- **Execution history** — every run with stdout/stderr, duration, and exit code
+- **Statistics** — success rate, total executions, enabled job count
+- **Job management** — create, edit, enable/disable, and trigger jobs from the UI
+
 ## View execution history
+
+From the CLI:
 
 ```bash
 cronbase history
@@ -83,5 +85,6 @@ hello                ✓ success  2.1ms      0      0        3/18/2025, 2:05:00 
 
 - [Configuration](/guide/configuration) — YAML config files, environment variables, timeouts, retries
 - [Alerting](/guide/alerting) — Slack, Discord, and webhook notifications
-- [Docker](/guide/docker) — Run cronbase in a container
+- [Docker](/guide/docker) — Docker Compose, config files, and health checks
+- [Migration](/guide/migration) — Import jobs from your existing crontab
 - [CLI Reference](/reference/cli) — All commands and options
