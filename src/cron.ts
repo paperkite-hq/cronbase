@@ -152,11 +152,111 @@ export function parseCron(expression: string): ParsedCron {
 }
 
 /**
- * Get the next run time after `after` for the given parsed cron expression.
- * Returns an ISO 8601 string.
+ * Extract wall-clock date/time components in the given IANA timezone.
+ * Returns values matching the cron field ranges:
+ *   minute 0-59, hour 0-23, dayOfMonth 1-31, month 1-12, dayOfWeek 0-6 (0=Sunday).
  */
-export function getNextRun(parsed: ParsedCron, after: Date = new Date()): Date {
-	// Start from the next minute (all arithmetic in UTC — cronbase stores times as UTC)
+function getComponentsInTz(
+	date: Date,
+	tz: string,
+): { minute: number; hour: number; dayOfMonth: number; month: number; dayOfWeek: number } {
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone: tz,
+		year: "numeric",
+		month: "numeric",
+		day: "numeric",
+		hour: "numeric",
+		minute: "numeric",
+		hour12: false,
+	}).formatToParts(date);
+
+	const p: Record<string, string> = {};
+	for (const part of parts) p[part.type] = part.value;
+
+	const year = Number.parseInt(p.year, 10);
+	const month = Number.parseInt(p.month, 10);
+	const day = Number.parseInt(p.day, 10);
+	let hour = Number.parseInt(p.hour, 10);
+	const minute = Number.parseInt(p.minute, 10);
+
+	// Some Intl implementations return 24 for midnight — normalise
+	if (hour === 24) hour = 0;
+
+	// Day-of-week from calendar date (same regardless of time zone for a given date)
+	const dayOfWeek = new Date(year, month - 1, day).getDay();
+
+	return { minute, hour, dayOfMonth: day, month, dayOfWeek };
+}
+
+/**
+ * Timezone-aware variant of getNextRun. Interprets cron fields as wall-clock
+ * time in the given IANA timezone (e.g. "America/New_York"). All stored times
+ * remain UTC — only the field interpretation changes.
+ *
+ * Advances one minute at a time (no fast-skip) so that DST transitions are
+ * handled correctly: a skipped clock hour is naturally skipped, a repeated
+ * clock hour fires once on the first occurrence.
+ */
+function getNextRunTz(parsed: ParsedCron, after: Date, tz: string): Date {
+	const next = new Date(after);
+	next.setSeconds(0, 0);
+	next.setMinutes(next.getMinutes() + 1);
+
+	const limit = new Date(after);
+	limit.setFullYear(limit.getFullYear() + 5);
+
+	const domConstrained = parsed.dayOfMonth.length < 31;
+	const dowConstrained = parsed.dayOfWeek.length < 7;
+	const useDayOr = domConstrained && dowConstrained;
+
+	const MAX_ITERATIONS = 500_000;
+	let iterations = 0;
+
+	while (next < limit) {
+		if (++iterations > MAX_ITERATIONS) {
+			throw new Error(
+				"Could not find next run time within iteration limit — schedule may be impossible or extremely rare",
+			);
+		}
+
+		const { minute, hour, dayOfMonth, month, dayOfWeek } = getComponentsInTz(next, tz);
+
+		const monthOk = parsed.month.includes(month);
+		const domOk = parsed.dayOfMonth.includes(dayOfMonth);
+		const dowOk = parsed.dayOfWeek.includes(dayOfWeek);
+		const dayOk = useDayOr ? domOk || dowOk : domOk && dowOk;
+
+		if (monthOk && dayOk && parsed.hour.includes(hour) && parsed.minute.includes(minute)) {
+			return new Date(next);
+		}
+
+		next.setMinutes(next.getMinutes() + 1);
+	}
+
+	throw new Error("Could not find next run time within 5 years");
+}
+
+/**
+ * Get the next run time after `after` for the given parsed cron expression.
+ *
+ * When the `CRONBASE_TIMEZONE` environment variable is set to a valid IANA
+ * timezone (e.g. `America/New_York`), cron fields are interpreted as
+ * wall-clock time in that timezone. Otherwise UTC is used.
+ *
+ * The optional `timezone` parameter overrides `CRONBASE_TIMEZONE` for
+ * programmatic use (e.g. per-job timezone in library mode).
+ */
+export function getNextRun(
+	parsed: ParsedCron,
+	after: Date = new Date(),
+	timezone?: string,
+): Date {
+	const tz = timezone ?? process.env.CRONBASE_TIMEZONE;
+	if (tz && tz.toUpperCase() !== "UTC") {
+		return getNextRunTz(parsed, after, tz);
+	}
+
+	// UTC path — all arithmetic in UTC so cronbase stores times correctly
 	const next = new Date(after);
 	next.setUTCSeconds(0, 0);
 	next.setUTCMinutes(next.getUTCMinutes() + 1);

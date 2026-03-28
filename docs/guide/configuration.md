@@ -85,6 +85,7 @@ tags:
 |---|---|---|
 | `CRONBASE_DB` | `./cronbase.db` | Path to the SQLite database file |
 | `CRONBASE_API_TOKEN` | _(none)_ | Require this token on all API requests (recommended for network-accessible deployments) |
+| `CRONBASE_TIMEZONE` | _(UTC)_ | IANA timezone for schedule interpretation (e.g. `America/New_York`). Cron fields are treated as wall-clock time in this timezone. |
 | `CRONBASE_LOG_LEVEL` | `info` | Minimum log level: `error`, `warn`, `info`, `debug`, or `silent` |
 | `CRONBASE_LOG_FORMAT` | _(text)_ | Set to `json` for machine-readable structured log output |
 
