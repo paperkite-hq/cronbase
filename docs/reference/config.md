@@ -78,6 +78,7 @@ jobs:
 | `enabled` | boolean | `true` | Whether the job runs on schedule |
 | `tags` | string[] | `[]` | Tags for organization |
 | `env` | object | — | Environment variables (key-value pairs) |
+| `timezone` | string | — | IANA timezone for this job (e.g. `America/New_York`). Overrides the `CRONBASE_TIMEZONE` env var for this job only. |
 
 ### Alert shortcuts
 

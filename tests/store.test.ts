@@ -562,6 +562,102 @@ describe("Store - closed property", () => {
 	});
 });
 
+describe("Store - per-job timezone", () => {
+	test("stores and retrieves timezone on addJob", () => {
+		const job = store.addJob({
+			name: "tz-job",
+			schedule: "0 9 * * *",
+			command: "echo hello",
+			timezone: "America/New_York",
+		});
+
+		expect(job.timezone).toBe("America/New_York");
+		const fetched = store.getJob(job.id);
+		expect(fetched?.timezone).toBe("America/New_York");
+	});
+
+	test("timezone defaults to null when not provided", () => {
+		const job = store.addJob({
+			name: "no-tz-job",
+			schedule: "0 9 * * *",
+			command: "echo hello",
+		});
+
+		expect(job.timezone).toBeNull();
+	});
+
+	test("per-job timezone affects nextRun calculation", () => {
+		// At 2026-03-15 20:00 UTC = 4 PM Eastern (UTC-4 EDT)
+		// "0 9 * * *" = 9 AM Eastern = 13:00 UTC (on the next day)
+		// Without timezone, next run in UTC would be 2026-03-16 09:00 UTC
+		// With America/New_York, next run would be 2026-03-16 13:00 UTC (9 AM EDT)
+		const jobUtc = store.addJob({
+			name: "utc-job",
+			schedule: "0 9 * * *",
+			command: "echo utc",
+		});
+		const jobNy = store.addJob({
+			name: "ny-job",
+			schedule: "0 9 * * *",
+			command: "echo ny",
+			timezone: "America/New_York",
+		});
+
+		// Both should have nextRun set, and the NY job's next run should be later
+		// because 9 AM Eastern is 1 PM UTC (not 9 AM UTC)
+		expect(jobUtc.nextRun).not.toBeNull();
+		expect(jobNy.nextRun).not.toBeNull();
+
+		const utcTime = new Date(
+			(jobUtc.nextRun as string).includes("T")
+				? (jobUtc.nextRun as string)
+				: `${(jobUtc.nextRun as string).replace(" ", "T")}Z`,
+		);
+		const nyTime = new Date(
+			(jobNy.nextRun as string).includes("T")
+				? (jobNy.nextRun as string)
+				: `${(jobNy.nextRun as string).replace(" ", "T")}Z`,
+		);
+
+		// NY job should be scheduled for 9 AM Eastern, UTC job for 9 AM UTC
+		// Since EDT = UTC-4, NY 9 AM = UTC 13:00
+		expect(nyTime.getUTCHours()).toBe(13);
+		expect(utcTime.getUTCHours()).toBe(9);
+	});
+
+	test("updateJob can change timezone and recomputes nextRun", () => {
+		const job = store.addJob({
+			name: "update-tz-job",
+			schedule: "0 9 * * *",
+			command: "echo hello",
+		});
+
+		expect(job.timezone).toBeNull();
+		const originalNextRun = job.nextRun;
+
+		store.updateJob(job.id, { timezone: "Europe/London" });
+		const updated = store.getJob(job.id);
+
+		expect(updated?.timezone).toBe("Europe/London");
+		// nextRun should be recomputed when timezone changes
+		expect(updated?.nextRun).not.toBeNull();
+	});
+
+	test("updateJob preserves timezone when not updated", () => {
+		const job = store.addJob({
+			name: "preserve-tz-job",
+			schedule: "0 9 * * *",
+			command: "echo hello",
+			timezone: "Asia/Tokyo",
+		});
+
+		store.updateJob(job.id, { description: "updated desc" });
+		const updated = store.getJob(job.id);
+
+		expect(updated?.timezone).toBe("Asia/Tokyo");
+	});
+});
+
 describe("health info", () => {
 	test("includes version from types.ts", () => {
 		const { VERSION } = require("../src/types");

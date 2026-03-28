@@ -57,6 +57,7 @@ Options for 'add':
   --retries <count>      Max retry attempts on failure (default: 0)
   --retry-delay <secs>   Base delay for exponential backoff (default: 30)
   --description <text>   Optional description
+  --timezone <tz>        IANA timezone (e.g. America/New_York). Overrides CRONBASE_TIMEZONE.
   --disabled             Create job in disabled state
 
 Environment:
@@ -76,6 +77,7 @@ const VALUE_FLAGS = new Set([
 	"retries",
 	"retry-delay",
 	"description",
+	"timezone",
 	"db",
 	"port",
 	"host",
@@ -458,6 +460,7 @@ jobs:
 						? { maxAttempts: Number(flags.retries), baseDelay: Number(flags["retry-delay"] ?? 30) }
 						: undefined,
 					description: flags.description,
+					timezone: flags.timezone,
 					enabled: flags.disabled !== "true",
 				};
 

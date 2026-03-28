@@ -28,6 +28,8 @@ export interface JobConfig {
 	description?: string;
 	/** Tags for organization */
 	tags?: string[];
+	/** IANA timezone for this job (e.g. "America/New_York"). Overrides CRONBASE_TIMEZONE. */
+	timezone?: string;
 }
 
 export interface RetryConfig {
@@ -37,9 +39,11 @@ export interface RetryConfig {
 	baseDelay: number;
 }
 
-export interface Job extends Required<Omit<JobConfig, "id" | "tags">> {
+export interface Job extends Required<Omit<JobConfig, "id" | "tags" | "timezone">> {
 	id: number;
 	tags: string[];
+	/** Per-job IANA timezone (null = use CRONBASE_TIMEZONE or UTC) */
+	timezone: string | null;
 	/** When the job was created */
 	createdAt: string;
 	/** Next scheduled run time (ISO 8601) */
