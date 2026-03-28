@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { describeCron, getNextRun, parseCron } from "../src/cron";
 
 describe("parseCron", () => {
@@ -294,6 +294,66 @@ describe("getNextRun UTC consistency", () => {
 		const next = getNextRun(parsed, after);
 		// Next Monday in UTC is 2026-03-16
 		expect(next.getUTCDay()).toBe(1); // Monday
+		expect(next.getUTCDate()).toBe(16);
+	});
+});
+
+describe("getNextRun timezone support", () => {
+	const origTz = process.env.CRONBASE_TIMEZONE;
+
+	beforeEach(() => {
+		delete process.env.CRONBASE_TIMEZONE;
+	});
+
+	afterEach(() => {
+		if (origTz !== undefined) {
+			process.env.CRONBASE_TIMEZONE = origTz;
+		} else {
+			delete process.env.CRONBASE_TIMEZONE;
+		}
+	});
+
+	test("explicit timezone parameter interprets schedule in that timezone", () => {
+		// 2026-03-15 20:00 UTC = 2026-03-15 16:00 Eastern (UTC-4, DST active March)
+		const after = new Date("2026-03-15T20:00:00Z");
+		const parsed = parseCron("0 2 * * *"); // 2:00 AM
+
+		const next = getNextRun(parsed, after, "America/New_York");
+		// 2 AM Eastern on 2026-03-16 = 06:00 UTC (EDT = UTC-4)
+		expect(next.getUTCHours()).toBe(6);
+		expect(next.getUTCDate()).toBe(16);
+	});
+
+	test("CRONBASE_TIMEZONE env var interprets schedule in that timezone", () => {
+		process.env.CRONBASE_TIMEZONE = "America/New_York";
+		// 2026-03-15 20:00 UTC = 2026-03-15 16:00 Eastern
+		const after = new Date("2026-03-15T20:00:00Z");
+		const parsed = parseCron("0 2 * * *"); // 2 AM Eastern
+
+		const next = getNextRun(parsed, after);
+		// 2 AM Eastern on 2026-03-16 = 06:00 UTC (EDT = UTC-4)
+		expect(next.getUTCHours()).toBe(6);
+		expect(next.getUTCDate()).toBe(16);
+	});
+
+	test("UTC timezone explicit behaves same as no timezone", () => {
+		const after = new Date("2026-03-15T20:00:00Z");
+		const parsed = parseCron("0 0 * * *"); // midnight
+
+		const nextDefault = getNextRun(parsed, after);
+		const nextUtc = getNextRun(parsed, after, "UTC");
+
+		expect(nextDefault.getTime()).toBe(nextUtc.getTime());
+	});
+
+	test("Tokyo timezone (UTC+9) finds correct UTC time", () => {
+		// 2026-03-15 01:00 UTC = 2026-03-15 10:00 JST — 9 AM has already passed
+		const after = new Date("2026-03-15T01:00:00Z");
+		const parsed = parseCron("0 9 * * *"); // 9 AM JST
+
+		const next = getNextRun(parsed, after, "Asia/Tokyo");
+		// 9 AM JST on 2026-03-16 = 00:00 UTC on 2026-03-16 (JST = UTC+9)
+		expect(next.getUTCHours()).toBe(0);
 		expect(next.getUTCDate()).toBe(16);
 	});
 });

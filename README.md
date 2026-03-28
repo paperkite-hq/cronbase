@@ -221,6 +221,7 @@ cronbase start --config cronbase.yaml    # load on startup
 |---|---|---|
 | `CRONBASE_DB` | `./cronbase.db` | SQLite database path |
 | `CRONBASE_API_TOKEN` | *(none)* | Bearer token for API and dashboard authentication ([details](#security)) |
+| `CRONBASE_TIMEZONE` | *(UTC)* | IANA timezone for schedule interpretation (e.g. `America/New_York`, `Europe/London`). Cron fields are treated as wall-clock time in this timezone. |
 
 ### Cron expressions
 

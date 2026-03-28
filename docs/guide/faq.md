@@ -2,6 +2,30 @@
 
 Common questions about running and managing cronbase.
 
+## What timezone does cronbase use for scheduling?
+
+By default, cronbase interprets cron expressions in **UTC**. A job with schedule `0 2 * * *` runs at 2:00 AM UTC.
+
+To use a different timezone, set the `CRONBASE_TIMEZONE` environment variable to any valid [IANA timezone name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones) before starting cronbase:
+
+```bash
+CRONBASE_TIMEZONE=America/New_York cronbase start
+```
+
+With Docker:
+
+```bash
+docker run -d --name cronbase \
+  -p 7433:7433 \
+  -e CRONBASE_TIMEZONE=America/New_York \
+  -v cronbase-data:/data \
+  ghcr.io/paperkite-hq/cronbase
+```
+
+With this setting, `0 2 * * *` fires at 2:00 AM Eastern — automatically adjusting for daylight saving time transitions.
+
+Common timezone names: `America/New_York`, `America/Los_Angeles`, `America/Chicago`, `Europe/London`, `Europe/Berlin`, `Asia/Tokyo`, `Australia/Sydney`.
+
 ## Can I run cronbase alongside my existing crontab?
 
 Yes. cronbase and crontab are completely independent — cronbase uses its own SQLite database and scheduler, so it won't interfere with your system crontab. You can migrate jobs gradually, running both side by side until you're ready to remove the old crontab entries. See the [Migration guide](/guide/migration) for a step-by-step process.
