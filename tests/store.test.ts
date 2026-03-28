@@ -633,7 +633,6 @@ describe("Store - per-job timezone", () => {
 		});
 
 		expect(job.timezone).toBeNull();
-		const originalNextRun = job.nextRun;
 
 		store.updateJob(job.id, { timezone: "Europe/London" });
 		const updated = store.getJob(job.id);

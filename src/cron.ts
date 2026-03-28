@@ -246,11 +246,7 @@ function getNextRunTz(parsed: ParsedCron, after: Date, tz: string): Date {
  * The optional `timezone` parameter overrides `CRONBASE_TIMEZONE` for
  * programmatic use (e.g. per-job timezone in library mode).
  */
-export function getNextRun(
-	parsed: ParsedCron,
-	after: Date = new Date(),
-	timezone?: string,
-): Date {
+export function getNextRun(parsed: ParsedCron, after: Date = new Date(), timezone?: string): Date {
 	const tz = timezone ?? process.env.CRONBASE_TIMEZONE;
 	if (tz && tz.toUpperCase() !== "UTC") {
 		return getNextRunTz(parsed, after, tz);
