@@ -40,6 +40,7 @@ function makeJob(overrides?: Partial<Job>): Job {
 		enabled: true,
 		description: "Database backup",
 		tags: [],
+		timezone: null,
 		createdAt: "2026-03-01T00:00:00.000Z",
 		nextRun: "2026-03-19T03:00:00.000Z",
 		lastStatus: "failed",

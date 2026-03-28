@@ -54,7 +54,8 @@ export class Store {
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         next_run TEXT,
         last_status TEXT,
-        last_run TEXT
+        last_run TEXT,
+        timezone TEXT DEFAULT NULL
       );
 
       CREATE TABLE IF NOT EXISTS executions (
@@ -81,16 +82,25 @@ export class Store {
         config TEXT NOT NULL DEFAULT '{}'
       );
     `);
+
+		// Add timezone column to existing databases (safe no-op on fresh installs).
+		// SQLite does not support "ALTER TABLE ... ADD COLUMN IF NOT EXISTS", so we
+		// catch the "duplicate column" error and continue.
+		try {
+			this.db.exec("ALTER TABLE jobs ADD COLUMN timezone TEXT DEFAULT NULL");
+		} catch {
+			// Column already exists — nothing to do
+		}
 	}
 
 	/** Add a new job and compute its next run time. */
 	addJob(config: JobConfig): Job {
 		const parsed = parseCron(config.schedule); // validates expression
-		const nextRun = getNextRun(parsed);
+		const nextRun = getNextRun(parsed, new Date(), config.timezone ?? undefined);
 
 		const stmt = this.db.prepare(`
-      INSERT INTO jobs (name, schedule, command, cwd, env, timeout, retry_max_attempts, retry_base_delay, enabled, description, tags, next_run)
-      VALUES ($name, $schedule, $command, $cwd, $env, $timeout, $retryMax, $retryDelay, $enabled, $description, $tags, $nextRun)
+      INSERT INTO jobs (name, schedule, command, cwd, env, timeout, retry_max_attempts, retry_base_delay, enabled, description, tags, next_run, timezone)
+      VALUES ($name, $schedule, $command, $cwd, $env, $timeout, $retryMax, $retryDelay, $enabled, $description, $tags, $nextRun, $timezone)
     `);
 
 		const result = stmt.run({
@@ -106,6 +116,7 @@ export class Store {
 			$description: config.description ?? "",
 			$tags: JSON.stringify(config.tags ?? []),
 			$nextRun: toSqliteDatetime(nextRun),
+			$timezone: config.timezone ?? null,
 		});
 
 		const id = Number(result.lastInsertRowid);
@@ -180,7 +191,7 @@ export class Store {
 			} else {
 				after = new Date();
 			}
-			nextRun = toSqliteDatetime(getNextRun(parsed, after));
+			nextRun = toSqliteDatetime(getNextRun(parsed, after, job.timezone ?? undefined));
 		} catch (e) {
 			// Log a warning — the job's next_run will be set to null, effectively disabling it.
 			// This can happen if the schedule was manually corrupted in the database.
@@ -219,17 +230,19 @@ export class Store {
 		const description =
 			"description" in updates ? (updates.description ?? job.description) : job.description;
 		const tags = "tags" in updates ? (updates.tags ?? job.tags) : job.tags;
+		const timezone = "timezone" in updates ? (updates.timezone ?? null) : (job.timezone ?? null);
 
-		// Only recompute next_run if the schedule or enabled state actually changed.
+		// Only recompute next_run if the schedule, timezone, or enabled state actually changed.
 		// Editing non-schedule fields (description, tags, env) should not reset the countdown.
 		const scheduleChanged = schedule !== job.schedule;
+		const timezoneChanged = timezone !== (job.timezone ?? null);
 		const enabledChanged = !!enabled !== job.enabled;
 		let nextRun: string | null = null;
 		if (enabled) {
-			if (scheduleChanged || enabledChanged) {
+			if (scheduleChanged || timezoneChanged || enabledChanged) {
 				try {
 					const parsed = parseCron(schedule);
-					nextRun = toSqliteDatetime(getNextRun(parsed));
+					nextRun = toSqliteDatetime(getNextRun(parsed, new Date(), timezone ?? undefined));
 				} catch (e) {
 					logger.warn(
 						`Failed to compute next run for "${name}" (schedule: ${schedule}): ${e instanceof Error ? e.message : e}`,
@@ -243,7 +256,7 @@ export class Store {
 				if (nextRun === null) {
 					try {
 						const parsed = parseCron(schedule);
-						nextRun = toSqliteDatetime(getNextRun(parsed));
+						nextRun = toSqliteDatetime(getNextRun(parsed, new Date(), timezone ?? undefined));
 					} catch {
 						// Schedule is genuinely invalid — leave null
 					}
@@ -256,7 +269,7 @@ export class Store {
 				`UPDATE jobs SET name = $name, schedule = $schedule, command = $command,
 				 cwd = $cwd, env = $env, timeout = $timeout, retry_max_attempts = $retryMax,
 				 retry_base_delay = $retryDelay, enabled = $enabled, description = $description,
-				 tags = $tags, next_run = $nextRun WHERE id = $id`,
+				 tags = $tags, next_run = $nextRun, timezone = $timezone WHERE id = $id`,
 			)
 			.run({
 				$name: name,
@@ -271,6 +284,7 @@ export class Store {
 				$description: description,
 				$tags: JSON.stringify(tags),
 				$nextRun: nextRun,
+				$timezone: timezone,
 				$id: id,
 			});
 	}
@@ -290,7 +304,7 @@ export class Store {
 		if (enabled) {
 			try {
 				const parsed = parseCron(job.schedule);
-				nextRun = toSqliteDatetime(getNextRun(parsed));
+				nextRun = toSqliteDatetime(getNextRun(parsed, new Date(), job.timezone ?? undefined));
 			} catch (e) {
 				logger.warn(
 					`Failed to compute next run for "${job.name}" (schedule: ${job.schedule}): ${e instanceof Error ? e.message : e}`,
@@ -517,6 +531,7 @@ export class Store {
 			nextRun: row.next_run ? String(row.next_run) : null,
 			lastStatus: row.last_status ? (String(row.last_status) as ExecutionStatus) : null,
 			lastRun: row.last_run ? String(row.last_run) : null,
+			timezone: row.timezone ? String(row.timezone) : null,
 		};
 	}
 

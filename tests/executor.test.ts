@@ -20,6 +20,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
 		enabled: true,
 		description: "",
 		tags: [],
+		timezone: null,
 		createdAt: new Date().toISOString(),
 		nextRun: null,
 		lastStatus: null,

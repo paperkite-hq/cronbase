@@ -45,6 +45,8 @@ interface ConfigJobEntry {
 	description?: string;
 	tags?: string[];
 	enabled?: boolean;
+	/** IANA timezone for this job (e.g. "America/New_York"). Overrides CRONBASE_TIMEZONE. */
+	timezone?: string;
 	/** Webhook URL for failure alerts */
 	on_failure?: string;
 	/** Webhook URL for success alerts */
@@ -367,6 +369,7 @@ export function loadConfigFile(filePath: string, store: Store): { added: number;
 			description: entry.description,
 			tags: entry.tags,
 			enabled: entry.enabled,
+			timezone: entry.timezone,
 		};
 
 		// Validate job config fields (name pattern, command length, env vars, etc.)
@@ -499,6 +502,7 @@ export function validateConfigFile(filePath: string): ConfigValidationError[] {
 			description: entry.description,
 			tags: entry.tags,
 			enabled: entry.enabled,
+			timezone: entry.timezone,
 		};
 		const configError = validateJobConfig(jobConfig as unknown as Record<string, unknown>);
 		if (configError) {
