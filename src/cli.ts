@@ -6,6 +6,7 @@
  *   cronbase start              Start the scheduler
  *   cronbase add <opts>         Add a new job
  *   cronbase list               List all jobs
+ *   cronbase show <name>        Show full details of a single job
  *   cronbase history [--job N]  Show execution history
  *   cronbase run <name>         Manually trigger a job
  *   cronbase remove <name>      Remove a job
@@ -35,6 +36,7 @@ Usage:
                                                        Start scheduler + web UI
   cronbase add --name <name> --schedule <cron> --command <cmd> [options]
   cronbase list                                         List all jobs
+  cronbase show <name>                                  Show full details of a single job
   cronbase history [--job <name>] [--limit 20]          Show execution history
   cronbase run <name>                                   Manually trigger a job
   cronbase remove <name>                                Remove a job
@@ -528,6 +530,56 @@ jobs:
 				}
 
 				console.log(`\n${jobs.length} job(s)`);
+				return 0;
+			} finally {
+				store.close();
+			}
+		}
+
+		case "show": {
+			const name = positional[0] ?? flags.name;
+			if (!name) {
+				console.error("Error: Job name required. Usage: cronbase show <name>");
+				return 1;
+			}
+
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+
+				const jsonOutput = flags.json === "true" || flags.output === "json";
+
+				if (jsonOutput) {
+					console.log(JSON.stringify(job, null, 2));
+					return 0;
+				}
+
+				console.log(`Job: ${job.name}`);
+				if (job.description) console.log(`Description: ${job.description}`);
+				console.log(`Enabled: ${job.enabled ? "yes" : "no"}`);
+				console.log();
+				console.log(`Schedule: ${job.schedule} (${describeCron(job.schedule)})`);
+				if (job.timezone) console.log(`Timezone: ${job.timezone}`);
+				console.log(`Command: ${job.command}`);
+				console.log(`Working dir: ${job.cwd}`);
+				console.log();
+				console.log(`Next run: ${formatDate(job.nextRun)}`);
+				console.log(`Last run: ${formatDate(job.lastRun)}`);
+				console.log(`Last status: ${statusIcon(job.lastStatus)} ${job.lastStatus ?? "never run"}`);
+				console.log();
+				console.log(`Timeout: ${job.timeout > 0 ? `${job.timeout}s` : "none"}`);
+				console.log(
+					`Retries: ${job.retry.maxAttempts > 0 ? `${job.retry.maxAttempts} (delay: ${job.retry.baseDelay}s)` : "none"}`,
+				);
+				if (job.tags.length > 0) console.log(`Tags: ${job.tags.join(", ")}`);
+				if (Object.keys(job.env).length > 0) console.log(`Env: ${Object.keys(job.env).join(", ")}`);
+				console.log();
+				console.log(`Created: ${formatDate(job.createdAt)}`);
+
 				return 0;
 			} finally {
 				store.close();

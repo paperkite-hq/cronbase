@@ -1185,6 +1185,50 @@ describe("runCommand (in-process)", () => {
 		expect(code).toBe(0);
 	});
 
+	test("show displays job details", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{
+				name: "show-test",
+				schedule: "0 2 * * *",
+				command: "echo backup",
+				description: "nightly backup",
+				timeout: "300",
+				retries: "3",
+				"retry-delay": "10",
+				timezone: "America/New_York",
+				db,
+			},
+			[],
+		);
+		const code = await runCommand("show", { db }, ["show-test"]);
+		expect(code).toBe(0);
+	});
+
+	test("show --json returns full job object", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "show-json", schedule: "*/5 * * * *", command: "echo hi", db },
+			[],
+		);
+		const code = await runCommand("show", { json: "true", db }, ["show-json"]);
+		expect(code).toBe(0);
+	});
+
+	test("show with missing name returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("show", { db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("show with unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("show", { db }, ["nonexistent"]);
+		expect(code).toBe(1);
+	});
+
 	test("run executes a job", async () => {
 		const db = freshDb();
 		await runCommand(
