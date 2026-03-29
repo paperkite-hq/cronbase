@@ -12,6 +12,7 @@
  *   cronbase enable <name>      Enable a job
  *   cronbase disable <name>     Disable a job
  *   cronbase stats              Show summary statistics
+ *   cronbase logs <name>        Show output from recent executions
  */
 
 import { loadConfigFile, validateConfigFile } from "./config";
@@ -40,6 +41,7 @@ Usage:
   cronbase enable <name>                                Enable a disabled job
   cronbase disable <name>                               Disable a job
   cronbase stats                                        Show summary statistics
+  cronbase logs <name> [--limit 1]                      Show output from recent executions
   cronbase prune [--days 90]                            Prune old execution history
   cronbase validate [--path cronbase.yaml]              Validate a config file (no DB changes)
   cronbase import [--dry-run]                            Import jobs from system crontab
@@ -569,6 +571,84 @@ jobs:
 					console.log(
 						`${exec.jobName.padEnd(20)} ${(`${statusIcon(exec.status)} ${exec.status}`).padEnd(10)} ${formatDuration(exec.durationMs).padEnd(10)} ${String(exec.exitCode ?? "—").padEnd(6)} ${String(exec.attempt).padEnd(8)} ${formatDate(exec.startedAt)}`,
 					);
+				}
+
+				return 0;
+			} finally {
+				store.close();
+			}
+		}
+
+		case "logs": {
+			const name = positional[0] ?? flags.name;
+			if (!name) {
+				console.error("Error: Job name required. Usage: cronbase logs <name>");
+				return 1;
+			}
+
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+
+				const limit = Number(flags.limit) || 1;
+				const jsonOutput = flags.json === "true" || flags.output === "json";
+				const execs = store.getExecutions({ jobId: job.id, limit });
+
+				if (execs.length === 0) {
+					console.log(`No executions found for "${name}".`);
+					return 0;
+				}
+
+				if (jsonOutput) {
+					console.log(
+						JSON.stringify(
+							execs.map((e) => ({
+								id: e.id,
+								status: e.status,
+								exitCode: e.exitCode,
+								durationMs: e.durationMs,
+								startedAt: e.startedAt,
+								finishedAt: e.finishedAt,
+								stdout: e.stdout,
+								stderr: e.stderr,
+							})),
+							null,
+							2,
+						),
+					);
+					return 0;
+				}
+
+				for (let i = 0; i < execs.length; i++) {
+					const exec = execs[i];
+					if (execs.length > 1) {
+						console.log(
+							`── ${statusIcon(exec.status)} ${exec.status} (${formatDuration(exec.durationMs)}, exit ${exec.exitCode ?? "—"}) at ${formatDate(exec.startedAt)} ──`,
+						);
+					} else {
+						console.log(
+							`${statusIcon(exec.status)} ${exec.status} (${formatDuration(exec.durationMs)}, exit ${exec.exitCode ?? "—"}) at ${formatDate(exec.startedAt)}`,
+						);
+					}
+
+					if (exec.stdout.trim()) {
+						if (exec.stderr.trim()) console.log("\n--- stdout ---");
+						console.log(exec.stdout.trim());
+					}
+					if (exec.stderr.trim()) {
+						if (exec.stdout.trim()) console.log("\n--- stderr ---");
+						else console.log("--- stderr ---");
+						console.log(exec.stderr.trim());
+					}
+					if (!exec.stdout.trim() && !exec.stderr.trim()) {
+						console.log("(no output)");
+					}
+
+					if (i < execs.length - 1) console.log();
 				}
 
 				return 0;

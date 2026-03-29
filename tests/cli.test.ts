@@ -1345,6 +1345,62 @@ describe("runCommand (in-process)", () => {
 		expect(code).toBe(1);
 	});
 
+	test("logs requires job name", async () => {
+		const db = freshDb();
+		const code = await runCommand("logs", { db }, []);
+		expect(code).toBe(1);
+	});
+
+	test("logs unknown job returns 1", async () => {
+		const db = freshDb();
+		const code = await runCommand("logs", { db }, ["ghost"]);
+		expect(code).toBe(1);
+	});
+
+	test("logs with no executions", async () => {
+		const db = freshDb();
+		await runCommand("add", { name: "nolog", schedule: "* * * * *", command: "echo x", db }, []);
+		const code = await runCommand("logs", { db }, ["nolog"]);
+		expect(code).toBe(0);
+	});
+
+	test("logs shows output after run", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "logtest", schedule: "* * * * *", command: "echo hello-logs", db },
+			[],
+		);
+		await runCommand("run", { db }, ["logtest"]);
+		const code = await runCommand("logs", { db }, ["logtest"]);
+		expect(code).toBe(0);
+	});
+
+	test("logs --json", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "logj", schedule: "* * * * *", command: "echo json-output", db },
+			[],
+		);
+		await runCommand("run", { db }, ["logj"]);
+		const code = await runCommand("logs", { json: "true", db }, ["logj"]);
+		expect(code).toBe(0);
+	});
+
+	test("logs --limit shows multiple executions", async () => {
+		const db = freshDb();
+		await runCommand(
+			"add",
+			{ name: "logmulti", schedule: "* * * * *", command: "echo multi", db },
+			[],
+		);
+		await runCommand("run", { db }, ["logmulti"]);
+		await runCommand("run", { db }, ["logmulti"]);
+		const code = await runCommand("logs", { limit: "2", db }, ["logmulti"]);
+		expect(code).toBe(0);
+	});
+
 	test("prune", async () => {
 		const db = freshDb();
 		await runCommand("add", { name: "p1", schedule: "* * * * *", command: "echo x", db }, []);

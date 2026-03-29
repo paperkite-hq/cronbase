@@ -260,6 +260,7 @@ cronbase add --name <name> --schedule <cron> --command <cmd> [options]
 
 cronbase list                                       List all jobs
 cronbase history [--job <name>] [--limit 20]        Show execution history
+cronbase logs <name> [--limit 1]                    Show output from recent executions
 cronbase run <name>                                 Manually trigger a job
 cronbase remove <name>                              Remove a job
 cronbase enable <name>                              Enable a disabled job
@@ -312,6 +313,18 @@ $ cronbase history --limit 5
 Job                  Status     Duration   Exit   Attempt  Started
 ──────────────────────────────────────────────────────────────────────────────────────────
 health-check         ✓ success  127ms      0      0        3/18/2026, 10:53:42 PM
+```
+
+**Viewing job output:**
+```
+$ cronbase logs backup-db
+✗ failed (5.2s, exit 1) at 3/19/2026, 2:00:05 AM
+
+--- stdout ---
+pg_dump: dumping database "mydb"...
+
+--- stderr ---
+pg_dump: error: connection to server on socket "/var/run/postgresql/.s.PGSQL.5432" failed: No such file or directory
 ```
 
 **Statistics:**

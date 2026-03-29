@@ -73,6 +73,31 @@ cronbase history [--job <name>] [--limit 20]
 | `--job` | — | Filter by job name |
 | `--limit` | `20` | Maximum number of entries |
 
+## cronbase logs
+
+Show stdout/stderr output from a job's recent executions.
+
+```bash
+cronbase logs <name> [--limit 1]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--limit` | `1` | Number of recent executions to show |
+
+By default shows the most recent execution. Use `--limit 5` to see the last 5 runs. Useful for quickly checking why a job failed without opening the dashboard.
+
+```bash
+# Check the latest output from backup-db
+cronbase logs backup-db
+
+# Show the last 3 runs
+cronbase logs backup-db --limit 3
+
+# Machine-readable output
+cronbase logs backup-db --json
+```
+
 ## cronbase run
 
 Manually trigger a job and wait for completion.
@@ -151,7 +176,7 @@ $ cronbase validate --path bad-config.yaml
 
 ### `--json`
 
-Output in JSON format instead of the default human-readable table. Supported by: `list`, `history`, `stats`, `run`, `export`.
+Output in JSON format instead of the default human-readable table. Supported by: `list`, `history`, `logs`, `stats`, `run`, `export`.
 
 ```bash
 cronbase list --json
