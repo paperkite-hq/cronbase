@@ -50,6 +50,39 @@ cronbase add \
   --description "Nightly database backup"
 ```
 
+## cronbase show
+
+Show full details of a single job — schedule, command, next/last run, timeout, retries, tags, and environment variables.
+
+```bash
+cronbase show <name>
+```
+
+Example output:
+
+```
+$ cronbase show backup-db
+Job: backup-db
+Description: Nightly database backup
+Enabled: yes
+
+Schedule: 0 2 * * * (At 02:00)
+Command: pg_dump mydb > /backups/db-$(date +%Y%m%d).sql
+Working dir: .
+
+Next run: 3/30/2026, 2:00:00 AM
+Last run: 3/29/2026, 2:00:05 AM
+Last status: ✓ success
+
+Timeout: 300s
+Retries: 2 (delay: 60s)
+Tags: database, production
+
+Created: 3/15/2026, 9:30:00 AM
+```
+
+Supports `--json` for machine-readable output.
+
 ## cronbase list
 
 List all jobs with their current status.
@@ -176,7 +209,7 @@ $ cronbase validate --path bad-config.yaml
 
 ### `--json`
 
-Output in JSON format instead of the default human-readable table. Supported by: `list`, `history`, `logs`, `stats`, `run`, `export`.
+Output in JSON format instead of the default human-readable table. Supported by: `list`, `show`, `history`, `logs`, `stats`, `run`, `export`.
 
 ```bash
 cronbase list --json

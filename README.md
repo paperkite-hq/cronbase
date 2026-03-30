@@ -300,6 +300,27 @@ health-check              */5 * * * *          — never    —                 
 3 job(s)
 ```
 
+**Inspecting a job:**
+```
+$ cronbase show backup-db
+Job: backup-db
+Description: Nightly database backup
+Enabled: yes
+
+Schedule: 0 2 * * * (At 02:00)
+Command: pg_dump mydb > /backups/db.sql
+Working dir: .
+
+Next run: 3/20/2026, 2:00:00 AM
+Last run: 3/19/2026, 2:00:05 AM
+Last status: ✗ failed
+
+Timeout: 300s
+Retries: 2 (delay: 60s)
+
+Created: 3/15/2026, 9:30:00 AM
+```
+
 **Running a job manually:**
 ```
 $ cronbase run health-check
