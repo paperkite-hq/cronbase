@@ -50,6 +50,40 @@ cronbase add \
   --description "Nightly database backup"
 ```
 
+## cronbase edit
+
+Update an existing job's properties without removing and re-adding it. Only the flags you specify are changed — everything else stays the same. Execution history is preserved.
+
+```bash
+cronbase edit <name> [options]
+```
+
+| Flag | Description |
+|---|---|
+| `--schedule` | New cron expression or preset |
+| `--command` | New shell command |
+| `--cwd` | New working directory |
+| `--timeout` | New timeout in seconds (0 to remove) |
+| `--retries` | New max retry count |
+| `--retry-delay` | New backoff base delay in seconds |
+| `--description` | New description |
+| `--timezone` | New IANA timezone |
+| `--enabled` | Enable the job |
+| `--disabled` | Disable the job |
+
+**Examples:**
+
+```bash
+# Change a job's schedule
+cronbase edit backup-db --schedule "0 3 * * *"
+
+# Update the command and increase timeout
+cronbase edit health-check --command "curl -sf https://myapp.com/ready" --timeout 60
+
+# Disable a job temporarily
+cronbase edit cleanup-logs --disabled
+```
+
 ## cronbase show
 
 Show full details of a single job — schedule, command, next/last run, timeout, retries, tags, and environment variables.

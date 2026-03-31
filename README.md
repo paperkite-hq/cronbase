@@ -259,6 +259,7 @@ cronbase add --name <name> --schedule <cron> --command <cmd> [options]
   --disabled             Create job in disabled state
 
 cronbase list                                       List all jobs
+cronbase edit <name> [options]                      Update an existing job
 cronbase history [--job <name>] [--limit 20]        Show execution history
 cronbase logs <name> [--limit 1]                    Show output from recent executions
 cronbase run <name>                                 Manually trigger a job

@@ -433,6 +433,146 @@ describe("CLI commands", () => {
 		expect(stderr).toContain("Error:");
 	});
 
+	test("edit updates job schedule", async () => {
+		const db = freshDb();
+		await runCli([
+			"add",
+			"--name",
+			"edit-me",
+			"--schedule",
+			"0 * * * *",
+			"--command",
+			"echo original",
+			"--db",
+			db,
+		]);
+		const { stdout, exitCode } = await runCli([
+			"edit",
+			"edit-me",
+			"--schedule",
+			"*/15 * * * *",
+			"--db",
+			db,
+		]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("✓ Updated: edit-me");
+		expect(stdout).toContain("*/15 * * * *");
+
+		// Verify via show
+		const { stdout: showOut } = await runCli(["show", "edit-me", "--db", db]);
+		expect(showOut).toContain("*/15 * * * *");
+	});
+
+	test("edit updates command and timeout", async () => {
+		const db = freshDb();
+		await runCli([
+			"add",
+			"--name",
+			"edit-cmd",
+			"--schedule",
+			"@daily",
+			"--command",
+			"echo old",
+			"--db",
+			db,
+		]);
+		const { stdout, exitCode } = await runCli([
+			"edit",
+			"edit-cmd",
+			"--command",
+			"echo new",
+			"--timeout",
+			"120",
+			"--db",
+			db,
+		]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("✓ Updated: edit-cmd");
+		expect(stdout).toContain("echo new");
+		expect(stdout).toContain("120s");
+	});
+
+	test("edit can disable a job", async () => {
+		const db = freshDb();
+		await runCli([
+			"add",
+			"--name",
+			"toggle-me",
+			"--schedule",
+			"@hourly",
+			"--command",
+			"echo hi",
+			"--db",
+			db,
+		]);
+		const { stdout, exitCode } = await runCli(["edit", "toggle-me", "--disabled", "--db", db]);
+		expect(exitCode).toBe(0);
+		expect(stdout).toContain("Enabled:  no");
+	});
+
+	test("edit rejects unknown job", async () => {
+		const db = freshDb();
+		const { stderr, exitCode } = await runCli([
+			"edit",
+			"nonexistent",
+			"--schedule",
+			"@daily",
+			"--db",
+			db,
+		]);
+		expect(exitCode).toBe(1);
+		expect(stderr).toContain("not found");
+	});
+
+	test("edit with no flags shows error", async () => {
+		const db = freshDb();
+		await runCli([
+			"add",
+			"--name",
+			"no-change",
+			"--schedule",
+			"@daily",
+			"--command",
+			"echo hi",
+			"--db",
+			db,
+		]);
+		const { stderr, exitCode } = await runCli(["edit", "no-change", "--db", db]);
+		expect(exitCode).toBe(1);
+		expect(stderr).toContain("No changes specified");
+	});
+
+	test("edit rejects invalid schedule", async () => {
+		const db = freshDb();
+		await runCli([
+			"add",
+			"--name",
+			"bad-edit",
+			"--schedule",
+			"@daily",
+			"--command",
+			"echo hi",
+			"--db",
+			db,
+		]);
+		const { stderr, exitCode } = await runCli([
+			"edit",
+			"bad-edit",
+			"--schedule",
+			"not-a-cron",
+			"--db",
+			db,
+		]);
+		expect(exitCode).toBe(1);
+		expect(stderr).toContain("Error:");
+	});
+
+	test("edit with missing name", async () => {
+		const { stderr, exitCode } = await runCli(["edit"]);
+		expect(exitCode).toBe(1);
+		expect(stderr).toContain("Job name required");
+	});
+
 	test("list with no jobs", async () => {
 		const db = freshDb();
 		const { stdout, exitCode } = await runCli(["list", "--db", db]);

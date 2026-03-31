@@ -7,6 +7,7 @@
  *   cronbase add <opts>         Add a new job
  *   cronbase list               List all jobs
  *   cronbase show <name>        Show full details of a single job
+ *   cronbase edit <name> <opts> Update an existing job
  *   cronbase history [--job N]  Show execution history
  *   cronbase run <name>         Manually trigger a job
  *   cronbase remove <name>      Remove a job
@@ -37,6 +38,7 @@ Usage:
   cronbase add --name <name> --schedule <cron> --command <cmd> [options]
   cronbase list                                         List all jobs
   cronbase show <name>                                  Show full details of a single job
+  cronbase edit <name> [options]                        Update an existing job
   cronbase history [--job <name>] [--limit 20]          Show execution history
   cronbase run <name>                                   Manually trigger a job
   cronbase remove <name>                                Remove a job
@@ -63,6 +65,18 @@ Options for 'add':
   --description <text>   Optional description
   --timezone <tz>        IANA timezone (e.g. America/New_York). Overrides CRONBASE_TIMEZONE.
   --disabled             Create job in disabled state
+
+Options for 'edit' (only specified flags are changed):
+  --schedule <cron>      New cron expression or preset
+  --command <cmd>        New shell command
+  --cwd <dir>            New working directory
+  --timeout <seconds>    New timeout (0 to remove)
+  --retries <count>      New retry count
+  --retry-delay <secs>   New backoff delay
+  --description <text>   New description
+  --timezone <tz>        New timezone
+  --enabled              Enable the job
+  --disabled             Disable the job
 
 Environment:
   CRONBASE_DB            Database path (default: ./cronbase.db)
@@ -492,6 +506,90 @@ jobs:
 				console.log(`  Schedule: ${job.schedule} (${describeCron(job.schedule)})`);
 				console.log(`  Command:  ${job.command}`);
 				console.log(`  Next run: ${formatDate(job.nextRun)}`);
+				return 0;
+			} catch (e) {
+				console.error(`Error: ${(e as Error).message}`);
+				return 1;
+			} finally {
+				store.close();
+			}
+		}
+
+		case "edit": {
+			const name = positional[0] ?? flags.name;
+			if (!name) {
+				console.error("Error: Job name required. Usage: cronbase edit <name> [options]");
+				return 1;
+			}
+
+			const store = new Store(dbPath);
+			try {
+				const job = store.getJobByName(name);
+				if (!job) {
+					console.error(`Error: Job "${name}" not found`);
+					return 1;
+				}
+
+				// Build partial update from provided flags
+				const updates: Partial<JobConfig> = {};
+				if ("schedule" in flags) updates.schedule = flags.schedule;
+				if ("command" in flags) updates.command = flags.command;
+				if ("cwd" in flags) updates.cwd = flags.cwd;
+				if ("timeout" in flags) updates.timeout = Number(flags.timeout);
+				if ("description" in flags) updates.description = flags.description;
+				if ("timezone" in flags) updates.timezone = flags.timezone;
+				if ("retries" in flags || "retry-delay" in flags) {
+					updates.retry = {
+						maxAttempts: "retries" in flags ? Number(flags.retries) : job.retry.maxAttempts,
+						baseDelay: "retry-delay" in flags ? Number(flags["retry-delay"]) : job.retry.baseDelay,
+					};
+				}
+				if (flags.disabled === "true") updates.enabled = false;
+				if (flags.enabled === "true") updates.enabled = true;
+
+				if (Object.keys(updates).length === 0) {
+					console.error(
+						"Error: No changes specified. Use flags like --schedule, --command, --timeout, etc.",
+					);
+					return 1;
+				}
+
+				// Validate changed fields merged with existing values
+				const merged = {
+					name: job.name,
+					command: updates.command ?? job.command,
+					description: updates.description ?? job.description,
+					timeout: updates.timeout ?? job.timeout,
+					env: job.env,
+					tags: job.tags,
+					cwd: updates.cwd ?? job.cwd,
+					retry: updates.retry ?? job.retry,
+				};
+				const validationError = validateJobConfig(merged as unknown as Record<string, unknown>);
+				if (validationError) {
+					console.error(`Error: ${validationError.message}`);
+					return 1;
+				}
+				if (updates.schedule) {
+					const scheduleError = validateSchedule(updates.schedule, parseCron);
+					if (scheduleError) {
+						console.error(`Error: ${scheduleError.message}`);
+						return 1;
+					}
+				}
+
+				store.updateJob(job.id, updates);
+				const updated = store.getJobByName(name);
+				console.log(`✓ Updated: ${name}`);
+				if (updates.schedule && updated) {
+					console.log(`  Schedule: ${updated.schedule} (${describeCron(updated.schedule)})`);
+					console.log(`  Next run: ${formatDate(updated.nextRun)}`);
+				}
+				if (updates.command) console.log(`  Command:  ${updates.command}`);
+				if (updates.timeout !== undefined)
+					console.log(`  Timeout:  ${updates.timeout > 0 ? `${updates.timeout}s` : "none"}`);
+				if (updates.enabled !== undefined)
+					console.log(`  Enabled:  ${updates.enabled ? "yes" : "no"}`);
 				return 0;
 			} catch (e) {
 				console.error(`Error: ${(e as Error).message}`);
