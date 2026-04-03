@@ -27,6 +27,7 @@ export default defineConfig({
 					{ text: "Migration from crontab", link: "/guide/migration" },
 					{ text: "Comparison", link: "/guide/comparison" },
 					{ text: "Examples", link: "/guide/examples" },
+					{ text: "Maintenance", link: "/guide/maintenance" },
 				{ text: "FAQ", link: "/guide/faq" },
 				],
 			},

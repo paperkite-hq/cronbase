@@ -13,6 +13,7 @@ cronbase start [--port 7433] [--db ./cronbase.db] [--config cronbase.yaml]
 | `--port` | `7433` | Port for the web dashboard and REST API |
 | `--db` | `./cronbase.db` | Path to the SQLite database |
 | `--config` | — | YAML or JSON config file to load on startup |
+| `--prune-days` | `90` | Delete execution history older than N days on startup (0 to disable) |
 
 The scheduler polls every second for due jobs and executes them. The web dashboard is served on the same port.
 
@@ -198,6 +199,30 @@ Disable a job without deleting it. Disabled jobs don't execute on schedule but c
 ```bash
 cronbase disable <name>
 ```
+
+## cronbase prune
+
+Delete execution history older than a given number of days.
+
+```bash
+cronbase prune [--days 90]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--days` | `90` | Delete executions older than N days |
+
+Prints the number of deleted records and exits. Safe to run while the scheduler is running.
+
+```bash
+# Prune history older than 30 days
+cronbase prune --days 30
+
+# Prune using default (90 days)
+cronbase prune
+```
+
+See the [Maintenance guide](/guide/maintenance) for recommended retention periods and the self-pruning job pattern.
 
 ## cronbase stats
 
