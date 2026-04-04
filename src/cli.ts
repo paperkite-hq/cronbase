@@ -513,7 +513,7 @@ jobs:
 		case "add": {
 			if ((!flags.name || !flags.schedule || !flags.command) && process.stdin.isTTY) {
 				// Interactive wizard — only when running in a real terminal
-				const readline = await import("readline");
+				const readline = await import("node:readline");
 				const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 				const filled = await promptAdd(flags, rl);
 				rl.close();
