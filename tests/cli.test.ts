@@ -7,6 +7,7 @@ import {
 	formatDuration,
 	parseArgs,
 	parseCrontabLine,
+	promptAdd,
 	runCommand,
 	statusIcon,
 	yamlQuote,
@@ -1733,5 +1734,68 @@ describe("runCommand (in-process)", () => {
 			}
 			rmSync(dir, { recursive: true });
 		});
+	});
+});
+
+describe("promptAdd", () => {
+	/** Build a mock readline that replays a sequence of answers */
+	function mockRl(answers: string[]): { rl: import("../src/cli").ReadlinePrompt; closed: boolean } {
+		let idx = 0;
+		const mock = {
+			closed: false,
+			rl: {
+				question(_query: string, cb: (a: string) => void) {
+					cb(answers[idx++] ?? "");
+				},
+				close() {
+					mock.closed = true;
+				},
+			},
+		};
+		return mock;
+	}
+
+	test("fills in all required fields from interactive answers", async () => {
+		const { rl } = mockRl(["my-job", "@daily", "echo hello", "", ""]);
+		const result = await promptAdd({}, rl);
+		expect(result).not.toBeNull();
+		expect(result?.name).toBe("my-job");
+		expect(result?.schedule).toBe("@daily");
+		expect(result?.command).toBe("echo hello");
+		expect(result?.description).toBeUndefined();
+		expect(result?.cwd).toBeUndefined();
+	});
+
+	test("fills in optional description and cwd", async () => {
+		const { rl } = mockRl(["job", "* * * * *", "echo hi", "My job", "/tmp"]);
+		const result = await promptAdd({}, rl);
+		expect(result?.description).toBe("My job");
+		expect(result?.cwd).toBe("/tmp");
+	});
+
+	test("preserves pre-supplied flags", async () => {
+		const { rl } = mockRl(["echo pre", "", ""]);
+		const result = await promptAdd({ name: "pre", schedule: "@hourly" }, rl);
+		expect(result?.name).toBe("pre");
+		expect(result?.schedule).toBe("@hourly");
+		expect(result?.command).toBe("echo pre");
+	});
+
+	test("returns null when name is left empty", async () => {
+		const { rl } = mockRl(["", "", ""]);
+		const result = await promptAdd({}, rl);
+		expect(result).toBeNull();
+	});
+
+	test("returns null when schedule is left empty", async () => {
+		const { rl } = mockRl(["job-name", "", ""]);
+		const result = await promptAdd({}, rl);
+		expect(result).toBeNull();
+	});
+
+	test("returns null when command is left empty", async () => {
+		const { rl } = mockRl(["job-name", "@daily", ""]);
+		const result = await promptAdd({}, rl);
+		expect(result).toBeNull();
 	});
 });

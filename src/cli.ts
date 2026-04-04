@@ -248,6 +248,57 @@ export function parseCrontabLine(line: string): { schedule: string; command: str
 	return { schedule, command };
 }
 
+/** Readline-like interface accepted by promptAdd — narrow enough to be easily mocked in tests. */
+export interface ReadlinePrompt {
+	question(query: string, callback: (answer: string) => void): void;
+	close(): void;
+}
+
+/**
+ * Interactively prompt for the fields needed by `cronbase add`.
+ * Only called when stdin is a TTY and required flags are missing.
+ * Exported for unit testing with a mocked readline interface.
+ *
+ * Returns the filled-in flags record, or null if the user aborted.
+ */
+export async function promptAdd(
+	initial: Record<string, string>,
+	rl: ReadlinePrompt,
+): Promise<Record<string, string> | null> {
+	const ask = (query: string): Promise<string> =>
+		new Promise((resolve) => rl.question(query, resolve));
+
+	const flags = { ...initial };
+
+	if (!flags.name) {
+		const answer = (await ask("? Job name: ")).trim();
+		if (!answer) return null;
+		flags.name = answer;
+	}
+
+	if (!flags.schedule) {
+		console.log("  Presets: @hourly  @daily  @weekly  @monthly  @yearly");
+		console.log("  Or a cron expression: */5 * * * *  (every 5 min)");
+		const answer = (await ask("? Schedule: ")).trim();
+		if (!answer) return null;
+		flags.schedule = answer;
+	}
+
+	if (!flags.command) {
+		const answer = (await ask("? Command to run: ")).trim();
+		if (!answer) return null;
+		flags.command = answer;
+	}
+
+	const desc = (await ask("? Description (optional, Enter to skip): ")).trim();
+	if (desc) flags.description = desc;
+
+	const cwd = (await ask("? Working directory (optional, Enter to skip): ")).trim();
+	if (cwd) flags.cwd = cwd;
+
+	return flags;
+}
+
 /**
  * Import jobs from the system crontab (crontab -l).
  * Generates unique names from the command.
@@ -460,6 +511,20 @@ jobs:
 		}
 
 		case "add": {
+			if ((!flags.name || !flags.schedule || !flags.command) && process.stdin.isTTY) {
+				// Interactive wizard — only when running in a real terminal
+				const readline = await import("readline");
+				const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+				const filled = await promptAdd(flags, rl);
+				rl.close();
+				if (!filled) {
+					console.error("Error: aborted — all three fields (name, schedule, command) are required");
+					return 1;
+				}
+				// Merge interactively-collected values back into flags
+				Object.assign(flags, filled);
+			}
+
 			if (!flags.name || !flags.schedule || !flags.command) {
 				console.error("Error: --name, --schedule, and --command are required");
 				console.error("Run 'cronbase add --help' for usage");
