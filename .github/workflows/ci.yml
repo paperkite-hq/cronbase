@@ -83,7 +83,7 @@ jobs:
         run: bun run docs:build
 
       - name: Download coverage badge
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: coverage-badge
           path: docs/.vitepress/dist
