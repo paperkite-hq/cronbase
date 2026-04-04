@@ -2,3 +2,6 @@
 
 # Local-only hooks
 .githooks/commit-msg
+
+# Logo preview build artifacts
+docs/.vitepress/dist/
