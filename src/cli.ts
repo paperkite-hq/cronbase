@@ -33,7 +33,7 @@ function usage(): void {
 
 Usage:
   cronbase init [--path cronbase.yaml] [--force]          Generate a starter config file
-  cronbase start [--port 7433] [--host 127.0.0.1] [--db ./cronbase.db] [--config cronbase.yaml] [--prune-days 90]
+  cronbase start [--port 7433] [--host 127.0.0.1] [--db ./cronbase.db] [--config cronbase.yaml] [--prune-days 90] [--demo]
                                                        Start scheduler + web UI
   cronbase add --name <name> --schedule <cron> --command <cmd> [options]
   cronbase list                                         List all jobs
@@ -155,6 +155,41 @@ export function formatDuration(ms: number | null): string {
 	if (ms < 1000) return `${ms}ms`;
 	if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
 	return `${(ms / 60000).toFixed(1)}m`;
+}
+
+/** Demo jobs loaded when `cronbase start --demo` is run on an empty database. */
+export const DEMO_JOBS = [
+	{
+		name: "health-check",
+		schedule: "*/5 * * * *",
+		command: "curl -sf https://example.com/health || echo 'health check failed'",
+		timeout: 30,
+		description: "Demo: check a web endpoint every 5 minutes",
+	},
+	{
+		name: "daily-backup",
+		schedule: "@daily",
+		command: "echo 'Backing up database...' && sleep 2 && echo 'Backup complete'",
+		timeout: 300,
+		retry: { maxAttempts: 2, baseDelay: 60 },
+		description: "Demo: simulate a nightly database backup with retry",
+	},
+	{
+		name: "weekly-cleanup",
+		schedule: "@weekly",
+		command:
+			"echo 'Cleaning up old files...' && find /tmp -name '*.tmp' -mtime +7 -delete 2>/dev/null; echo 'Cleanup done'",
+		description: "Demo: remove stale temp files once a week",
+	},
+] as const;
+
+/** Load demo jobs into the store. Only adds jobs when the DB is empty. */
+export function loadDemoJobs(store: Store): number {
+	if (store.listJobs().length > 0) return 0;
+	for (const job of DEMO_JOBS) {
+		store.addJob({ ...job });
+	}
+	return DEMO_JOBS.length;
 }
 
 export function statusIcon(status: string | null): string {
@@ -475,6 +510,7 @@ jobs:
 			const hostname = flags.host;
 			const configPath = flags.config;
 			const pruneAfterDays = flags["prune-days"] ? Number(flags["prune-days"]) : undefined;
+			const demoMode = "demo" in flags;
 			const scheduler = new Scheduler({ dbPath, port, hostname, pruneAfterDays });
 
 			// Load config file if provided
@@ -485,6 +521,16 @@ jobs:
 				} catch (e) {
 					console.error(`[cronbase] Config error: ${(e as Error).message}`);
 					return 1;
+				}
+			}
+
+			// Demo mode: pre-populate sample jobs when DB is empty
+			if (demoMode) {
+				const added = loadDemoJobs(scheduler.getStore());
+				if (added > 0) {
+					console.log(
+						`[cronbase] Demo mode: ${added} sample jobs loaded. Visit http://localhost:${port} to explore.`,
+					);
 				}
 			}
 

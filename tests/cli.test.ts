@@ -3,8 +3,10 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+	DEMO_JOBS,
 	formatDate,
 	formatDuration,
+	loadDemoJobs,
 	parseArgs,
 	parseCrontabLine,
 	promptAdd,
@@ -12,6 +14,7 @@ import {
 	statusIcon,
 	yamlQuote,
 } from "../src/cli";
+import { Store } from "../src/store";
 
 // CLI tests spawn Bun subprocesses. Under load (e.g., pre-commit hooks running
 // all test files concurrently), subprocess startup + SQLite init can exceed the
@@ -1734,6 +1737,63 @@ describe("runCommand (in-process)", () => {
 			}
 			rmSync(dir, { recursive: true });
 		});
+	});
+});
+
+describe("loadDemoJobs", () => {
+	let tmpDir: string;
+
+	afterEach(() => {
+		if (tmpDir && existsSync(tmpDir)) {
+			rmSync(tmpDir, { recursive: true });
+		}
+	});
+
+	function freshStore(): Store {
+		tmpDir = mkdtempSync(join(tmpdir(), "cronbase-demo-test-"));
+		return new Store(join(tmpDir, "demo.db"));
+	}
+
+	test("loads all demo jobs into an empty store", () => {
+		const store = freshStore();
+		const added = loadDemoJobs(store);
+		expect(added).toBe(DEMO_JOBS.length);
+		const jobs = store.listJobs();
+		expect(jobs).toHaveLength(DEMO_JOBS.length);
+		store.close();
+	});
+
+	test("demo job names match DEMO_JOBS constant", () => {
+		const store = freshStore();
+		loadDemoJobs(store);
+		const names = store.listJobs().map((j) => j.name);
+		for (const demo of DEMO_JOBS) {
+			expect(names).toContain(demo.name);
+		}
+		store.close();
+	});
+
+	test("does not add jobs when store already has jobs", () => {
+		const store = freshStore();
+		store.addJob({ name: "existing", schedule: "@hourly", command: "echo x" });
+		const added = loadDemoJobs(store);
+		expect(added).toBe(0);
+		expect(store.listJobs()).toHaveLength(1);
+		store.close();
+	});
+
+	test("calling loadDemoJobs twice on empty store only loads once", () => {
+		const store = freshStore();
+		loadDemoJobs(store);
+		const added2 = loadDemoJobs(store);
+		expect(added2).toBe(0);
+		expect(store.listJobs()).toHaveLength(DEMO_JOBS.length);
+		store.close();
+	});
+
+	test("--demo flag is parsed as boolean by parseArgs", () => {
+		const result = parseArgs(["start", "--demo"]);
+		expect(result.flags.demo).toBe("true");
 	});
 });
 

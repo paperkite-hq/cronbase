@@ -104,10 +104,10 @@ docker run -d \
   --name cronbase \
   -p 7433:7433 \
   -v cronbase-data:/data \
-  ghcr.io/paperkite-hq/cronbase
+  ghcr.io/paperkite-hq/cronbase start --demo
 ```
 
-Open **http://localhost:7433** — the dashboard is live.
+Open **http://localhost:7433** — the dashboard is live with 3 sample jobs pre-loaded.
 
 Add your first job:
 
@@ -247,8 +247,9 @@ Standard 5-field cron format plus presets:
 ## CLI Reference
 
 ```
-cronbase start [--port 7433] [--db ./cronbase.db] [--config cronbase.yaml]
+cronbase start [--port 7433] [--db ./cronbase.db] [--config cronbase.yaml] [--demo]
                                                     Start scheduler + web UI
+  --demo                 Pre-load 3 sample jobs on first launch (empty DB only)
 
 cronbase add --name <name> --schedule <cron> --command <cmd> [options]
   --cwd <dir>            Working directory (default: .)
