@@ -6,6 +6,7 @@
  */
 
 import { logger } from "./logger";
+import { formatEmailBody, formatEmailSubject, getSmtpOptions, sendEmail } from "./smtp";
 import type { Store } from "./store";
 import type { AlertConfig, Execution, ExecutionStatus, Job } from "./types";
 
@@ -245,12 +246,67 @@ export async function fireAlerts(
 	}
 }
 
+/** Fire email alerts for a completed execution. */
+export async function fireEmailAlerts(
+	job: Job,
+	execution: Execution,
+	alertConfig: AlertConfig,
+): Promise<void> {
+	if (!alertConfig.emails || alertConfig.emails.length === 0) return;
+
+	const payload = buildPayload(job, execution);
+	const event = payload.event;
+
+	const smtpOpts = getSmtpOptions();
+	if (!smtpOpts) {
+		logger.warn(
+			`Email alerts configured for job "${job.name}" but CRONBASE_SMTP_HOST is not set — skipping`,
+		);
+		return;
+	}
+
+	const subject = formatEmailSubject(event, job.name);
+	const body = formatEmailBody(event, job.name, job.schedule, {
+		exitCode: execution.exitCode,
+		durationMs: execution.durationMs,
+		startedAt: execution.startedAt,
+		attempt: execution.attempt,
+		stderrTail: (execution.stderr ?? "").slice(-500),
+		stdoutTail: (execution.stdout ?? "").slice(-500),
+	});
+
+	for (const emailConfig of alertConfig.emails) {
+		if (!emailConfig.events.includes(event)) continue;
+		if (emailConfig.to.length === 0) continue;
+
+		try {
+			await sendEmail(smtpOpts, emailConfig.to, subject, body);
+			logger.info(
+				`Email alert sent for job "${job.name}" (${event}) → ${emailConfig.to.join(", ")}`,
+			);
+		} catch (error) {
+			logger.error(`Email alert failed for job "${job.name}" (${event})`, {
+				error: error instanceof Error ? error.message : String(error),
+				to: emailConfig.to.join(", "),
+			});
+		}
+	}
+}
+
 /**
  * Check if a job has alert configuration and fire alerts if needed.
  * Called by the executor after a job completes.
  */
 export async function processAlerts(job: Job, execution: Execution, store: Store): Promise<void> {
 	const alertConfig = store.getJobAlert(job.id);
-	if (!alertConfig || alertConfig.webhooks.length === 0) return;
-	await fireAlerts(job, execution, alertConfig);
+	if (!alertConfig) return;
+
+	const hasWebhooks = alertConfig.webhooks.length > 0;
+	const hasEmails = (alertConfig.emails ?? []).length > 0;
+	if (!hasWebhooks && !hasEmails) return;
+
+	await Promise.all([
+		hasWebhooks ? fireAlerts(job, execution, alertConfig) : Promise.resolve(),
+		hasEmails ? fireEmailAlerts(job, execution, alertConfig) : Promise.resolve(),
+	]);
 }

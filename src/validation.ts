@@ -371,3 +371,23 @@ export function validateJobConfig(config: Record<string, unknown>): ValidationEr
 		null
 	);
 }
+
+/** Basic RFC 5321 email address validation. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_MAX = 254; // RFC 5321 max length
+
+/**
+ * Validate an email address string.
+ */
+export function validateEmail(email: unknown): ValidationError | null {
+	if (typeof email !== "string" || email.trim().length === 0) {
+		return { field: "email", message: "Email address is required" };
+	}
+	if (email.length > EMAIL_MAX) {
+		return { field: "email", message: `Email address must be at most ${EMAIL_MAX} characters` };
+	}
+	if (!EMAIL_PATTERN.test(email)) {
+		return { field: "email", message: `Invalid email address: "${email}"` };
+	}
+	return null;
+}

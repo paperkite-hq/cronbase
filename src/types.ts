@@ -102,9 +102,36 @@ export interface WebhookConfig {
 	retryDelayMs?: number;
 }
 
+export interface EmailConfig {
+	/** Recipient email addresses */
+	to: string[];
+	/** Which events trigger this email alert */
+	events: ("success" | "failed" | "timeout")[];
+}
+
 export interface AlertConfig {
 	/** Webhook endpoints to notify */
 	webhooks: WebhookConfig[];
+	/** Email addresses to notify */
+	emails?: EmailConfig[];
+}
+
+/**
+ * SMTP configuration read from environment variables.
+ * CRONBASE_SMTP_HOST      — SMTP server hostname (required for email alerts)
+ * CRONBASE_SMTP_PORT      — SMTP server port (default: 587)
+ * CRONBASE_SMTP_SECURE    — Use TLS (smtps://, port 465). Set to "true" to enable.
+ * CRONBASE_SMTP_FROM      — Sender address (default: cronbase@localhost)
+ * CRONBASE_SMTP_USERNAME  — SMTP AUTH username (optional)
+ * CRONBASE_SMTP_PASSWORD  — SMTP AUTH password (optional)
+ */
+export interface SmtpOptions {
+	host: string;
+	port: number;
+	secure: boolean;
+	from: string;
+	username?: string;
+	password?: string;
 }
 
 export interface SchedulerOptions {

@@ -27,7 +27,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { parseCron } from "./cron";
 import type { Store } from "./store";
 import type { AlertConfig, JobConfig } from "./types";
-import { validateJobConfig, validateSchedule, validateWebhookUrl } from "./validation";
+import {
+	validateEmail,
+	validateJobConfig,
+	validateSchedule,
+	validateWebhookUrl,
+} from "./validation";
 
 interface ConfigJobEntry {
 	name: string;
@@ -53,6 +58,12 @@ interface ConfigJobEntry {
 	on_success?: string;
 	/** Alert on every execution (success + failure) */
 	on_complete?: string;
+	/** Email address(es) for failure alerts (comma-separated or single) */
+	on_failure_email?: string;
+	/** Email address(es) for success alerts (comma-separated or single) */
+	on_success_email?: string;
+	/** Email address(es) for all events (comma-separated or single) */
+	on_complete_email?: string;
 }
 
 interface ConfigFile {
@@ -310,6 +321,17 @@ function parseYamlValue(val: string): string | number | boolean {
 }
 
 /**
+ * Parse a comma-separated list of email addresses.
+ * Trims whitespace and filters empty entries.
+ */
+function parseEmailList(input: string): string[] {
+	return input
+		.split(",")
+		.map((s) => s.trim())
+		.filter((s) => s.length > 0);
+}
+
+/**
  * Load jobs from a config file into the store.
  * Jobs that already exist (by name) are updated; new ones are created.
  * Returns the number of jobs loaded/updated.
@@ -378,26 +400,54 @@ export function loadConfigFile(filePath: string, store: Store): { added: number;
 			throw new Error(`Job "${entry.name}": ${validationError.message}`);
 		}
 
-		// Build alert config from on_failure/on_success/on_complete
+		// Build alert config from on_failure/on_success/on_complete (webhooks)
+		// and on_failure_email/on_success_email/on_complete_email (email)
 		let alert: AlertConfig | undefined;
-		if (entry.on_failure || entry.on_success || entry.on_complete) {
-			const webhooks: AlertConfig["webhooks"] = [];
-			if (entry.on_failure) {
-				const urlErr = validateWebhookUrl(entry.on_failure);
-				if (urlErr) throw new Error(`Job "${entry.name}" on_failure: ${urlErr.message}`);
-				webhooks.push({ url: entry.on_failure, events: ["failed", "timeout"] });
+		const webhooks: AlertConfig["webhooks"] = [];
+		if (entry.on_failure) {
+			const urlErr = validateWebhookUrl(entry.on_failure);
+			if (urlErr) throw new Error(`Job "${entry.name}" on_failure: ${urlErr.message}`);
+			webhooks.push({ url: entry.on_failure, events: ["failed", "timeout"] });
+		}
+		if (entry.on_success) {
+			const urlErr = validateWebhookUrl(entry.on_success);
+			if (urlErr) throw new Error(`Job "${entry.name}" on_success: ${urlErr.message}`);
+			webhooks.push({ url: entry.on_success, events: ["success"] });
+		}
+		if (entry.on_complete) {
+			const urlErr = validateWebhookUrl(entry.on_complete);
+			if (urlErr) throw new Error(`Job "${entry.name}" on_complete: ${urlErr.message}`);
+			webhooks.push({ url: entry.on_complete, events: ["success", "failed", "timeout"] });
+		}
+
+		const emailAlerts: NonNullable<AlertConfig["emails"]> = [];
+		if (entry.on_failure_email) {
+			const addrs = parseEmailList(entry.on_failure_email);
+			for (const addr of addrs) {
+				const err = validateEmail(addr);
+				if (err) throw new Error(`Job "${entry.name}" on_failure_email: ${err.message}`);
 			}
-			if (entry.on_success) {
-				const urlErr = validateWebhookUrl(entry.on_success);
-				if (urlErr) throw new Error(`Job "${entry.name}" on_success: ${urlErr.message}`);
-				webhooks.push({ url: entry.on_success, events: ["success"] });
+			emailAlerts.push({ to: addrs, events: ["failed", "timeout"] });
+		}
+		if (entry.on_success_email) {
+			const addrs = parseEmailList(entry.on_success_email);
+			for (const addr of addrs) {
+				const err = validateEmail(addr);
+				if (err) throw new Error(`Job "${entry.name}" on_success_email: ${err.message}`);
 			}
-			if (entry.on_complete) {
-				const urlErr = validateWebhookUrl(entry.on_complete);
-				if (urlErr) throw new Error(`Job "${entry.name}" on_complete: ${urlErr.message}`);
-				webhooks.push({ url: entry.on_complete, events: ["success", "failed", "timeout"] });
+			emailAlerts.push({ to: addrs, events: ["success"] });
+		}
+		if (entry.on_complete_email) {
+			const addrs = parseEmailList(entry.on_complete_email);
+			for (const addr of addrs) {
+				const err = validateEmail(addr);
+				if (err) throw new Error(`Job "${entry.name}" on_complete_email: ${err.message}`);
 			}
-			alert = { webhooks };
+			emailAlerts.push({ to: addrs, events: ["success", "failed", "timeout"] });
+		}
+
+		if (webhooks.length > 0 || emailAlerts.length > 0) {
+			alert = { webhooks, emails: emailAlerts.length > 0 ? emailAlerts : undefined };
 		}
 
 		const existing = store.getJobByName(entry.name);
@@ -521,6 +571,19 @@ export function validateConfigFile(filePath: string): ConfigValidationError[] {
 		if (entry.on_complete) {
 			const urlErr = validateWebhookUrl(entry.on_complete);
 			if (urlErr) errors.push({ job: jobLabel, field: "on_complete", message: urlErr.message });
+		}
+
+		// Email addresses
+		for (const [field, value] of [
+			["on_failure_email", entry.on_failure_email],
+			["on_success_email", entry.on_success_email],
+			["on_complete_email", entry.on_complete_email],
+		] as [string, string | undefined][]) {
+			if (!value) continue;
+			for (const addr of parseEmailList(value)) {
+				const emailErr = validateEmail(addr);
+				if (emailErr) errors.push({ job: jobLabel, field, message: emailErr.message });
+			}
 		}
 	}
 
