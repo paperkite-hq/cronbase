@@ -629,6 +629,7 @@ jobs:
 					tags: job.tags,
 					cwd: updates.cwd ?? job.cwd,
 					retry: updates.retry ?? job.retry,
+					timezone: updates.timezone ?? job.timezone,
 				};
 				const validationError = validateJobConfig(merged as unknown as Record<string, unknown>);
 				if (validationError) {

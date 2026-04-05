@@ -119,6 +119,7 @@ export async function handleApi(
 					tags: body.tags ?? job.tags,
 					cwd: body.cwd ?? job.cwd,
 					retry: body.retry ?? job.retry,
+					timezone: body.timezone ?? job.timezone,
 				} as Record<string, unknown>);
 				if (validationError) {
 					return json({ error: validationError.message }, 400, corsHeaders);

@@ -41,9 +41,12 @@ Create a new job.
   "timeout": 300,
   "retry": { "maxAttempts": 2, "baseDelay": 60 },
   "description": "Nightly database backup",
-  "tags": ["database", "backup"]
+  "tags": ["database", "backup"],
+  "timezone": "America/New_York"
 }
 ```
+
+The `timezone` field is optional. When set, cron fields are interpreted as wall-clock time in that IANA timezone (e.g. `America/New_York`, `Europe/London`). When omitted, UTC is used. The `CRONBASE_TIMEZONE` environment variable sets a default for all jobs.
 
 **Response:** The created job object.
 

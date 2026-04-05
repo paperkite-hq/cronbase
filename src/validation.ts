@@ -233,6 +233,26 @@ export function validateWebhookUrl(url: unknown): ValidationError | null {
 }
 
 /**
+ * Validate an IANA timezone string (e.g. "America/New_York").
+ * Null/undefined are allowed — they mean "use UTC".
+ */
+export function validateTimezone(timezone: unknown): ValidationError | null {
+	if (timezone === undefined || timezone === null || timezone === "") return null;
+	if (typeof timezone !== "string") {
+		return { field: "timezone", message: "Timezone must be a string" };
+	}
+	try {
+		Intl.DateTimeFormat("en-US", { timeZone: timezone });
+	} catch {
+		return {
+			field: "timezone",
+			message: `Invalid timezone: "${timezone}". Use an IANA timezone name (e.g. America/New_York, Europe/London, UTC)`,
+		};
+	}
+	return null;
+}
+
+/**
  * Validate a working directory path.
  */
 export function validateCwd(cwd: unknown): ValidationError | null {
@@ -347,6 +367,7 @@ export function validateJobConfig(config: Record<string, unknown>): ValidationEr
 		validateEnv(config.env) ??
 		validateTags(config.tags) ??
 		validateRetryConfig(config.retry) ??
+		validateTimezone(config.timezone) ??
 		null
 	);
 }

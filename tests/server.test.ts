@@ -388,6 +388,43 @@ describe("Input validation via API", () => {
 		expect(data.error).toContain("name");
 	});
 
+	test("rejects job with invalid timezone on create", async () => {
+		const { status, data } = await api("/api/jobs", {
+			method: "POST",
+			body: JSON.stringify({
+				name: "tz-invalid-create",
+				schedule: "@daily",
+				command: "echo hi",
+				timezone: "Fake/Timezone",
+			}),
+		});
+		expect(status).toBe(400);
+		expect(data.error).toContain("timezone");
+	});
+
+	test("accepts job with valid timezone on create", async () => {
+		const { status } = await api("/api/jobs", {
+			method: "POST",
+			body: JSON.stringify({
+				name: "tz-valid-create",
+				schedule: "@daily",
+				command: "echo hi",
+				timezone: "America/New_York",
+			}),
+		});
+		expect(status).toBe(201);
+	});
+
+	test("rejects job with invalid timezone on update", async () => {
+		const job = store.addJob({ name: "tz-update-test", schedule: "@daily", command: "echo" });
+		const { status, data } = await api(`/api/jobs/${job.id}`, {
+			method: "PUT",
+			body: JSON.stringify({ timezone: "Not/Real" }),
+		});
+		expect(status).toBe(400);
+		expect(data.error).toContain("timezone");
+	});
+
 	test("rejects webhook with non-http URL", async () => {
 		const job = store.addJob({ name: "webhook-test", schedule: "@daily", command: "echo" });
 		const { status, data } = await api(`/api/jobs/${job.id}/alerts`, {

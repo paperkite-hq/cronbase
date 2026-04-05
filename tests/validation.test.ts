@@ -15,6 +15,7 @@ import {
 	validateSchedule,
 	validateTags,
 	validateTimeout,
+	validateTimezone,
 	validateWebhookUrl,
 } from "../src/validation";
 
@@ -380,5 +381,33 @@ describe("validateSchedule", () => {
 		const err = validateSchedule("bad", mockParse);
 		expect(err).not.toBeNull();
 		expect(err?.message).toContain("Invalid schedule");
+	});
+});
+
+describe("validateTimezone", () => {
+	test("accepts null/undefined (UTC fallback)", () => {
+		expect(validateTimezone(null)).toBeNull();
+		expect(validateTimezone(undefined)).toBeNull();
+		expect(validateTimezone("")).toBeNull();
+	});
+
+	test("accepts valid IANA timezone names", () => {
+		expect(validateTimezone("UTC")).toBeNull();
+		expect(validateTimezone("America/New_York")).toBeNull();
+		expect(validateTimezone("Europe/London")).toBeNull();
+		expect(validateTimezone("Asia/Tokyo")).toBeNull();
+		expect(validateTimezone("Pacific/Auckland")).toBeNull();
+	});
+
+	test("rejects invalid timezone names", () => {
+		const err = validateTimezone("Fake/Timezone");
+		expect(err).not.toBeNull();
+		expect(err?.field).toBe("timezone");
+		expect(err?.message).toContain("Invalid timezone");
+	});
+
+	test("rejects non-string timezone", () => {
+		expect(validateTimezone(123)).not.toBeNull();
+		expect(validateTimezone({})).not.toBeNull();
 	});
 });
