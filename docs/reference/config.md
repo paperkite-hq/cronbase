@@ -37,6 +37,8 @@ jobs:
     on_failure: https://hooks.slack.com/services/T.../B.../xxx
     on_success: https://hooks.slack.com/services/T.../B.../yyy
     on_complete: https://hooks.slack.com/services/T.../B.../zzz
+    on_failure_email: ops@example.com
+    on_complete_email: ops@example.com, oncall@example.com
 ```
 
 ## JSON format
@@ -80,7 +82,7 @@ jobs:
 | `env` | object | — | Environment variables (key-value pairs) |
 | `timezone` | string | — | IANA timezone for this job (e.g. `America/New_York`). Overrides the `CRONBASE_TIMEZONE` env var for this job only. |
 
-### Alert shortcuts
+### Webhook alert shortcuts
 
 | Field | Type | Events |
 |---|---|---|
@@ -89,6 +91,18 @@ jobs:
 | `on_complete` | string (URL) | `success`, `failed`, `timeout` |
 
 These shortcuts create webhook alert configurations. The URL format is auto-detected — Slack and Discord URLs receive platform-specific formatted messages; all other URLs receive the raw JSON payload.
+
+### Email alert shortcuts
+
+| Field | Type | Events |
+|---|---|---|
+| `on_failure_email` | string (email) | `failed`, `timeout` |
+| `on_success_email` | string (email) | `success` |
+| `on_complete_email` | string (email) | `success`, `failed`, `timeout` |
+
+These shortcuts create email alert configurations. Values can be a single address or comma-separated list (e.g. `ops@example.com, oncall@example.com`). Requires `CRONBASE_SMTP_HOST` to be set — see [Alerting guide](/guide/alerting#email-smtp).
+
+You can combine webhook and email shortcuts on the same job.
 
 ## YAML parser notes
 

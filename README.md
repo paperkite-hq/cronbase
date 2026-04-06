@@ -64,7 +64,7 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 - **Built on Bun** — fast startup, low memory, TypeScript-native
 - **Battle-tested cron parser** — 5-field expressions, presets (`@daily`, `@hourly`), month/day names
 - **Full observability** — execution history, stdout/stderr capture, duration tracking
-- **Webhook alerting** — Slack, Discord, or any HTTP endpoint with auto-format detection
+- **Webhook + email alerting** — Slack, Discord, any HTTP endpoint, or SMTP email — no external dependencies
 
 ## Features
 
@@ -85,7 +85,8 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 **Alerting**
 - Webhook notifications on success, failure, or timeout
 - Auto-detects Slack and Discord URLs — sends rich formatted messages
-- Per-job alert configuration
+- SMTP email alerts — built-in SMTP client, no external dependencies
+- Per-job alert configuration (webhooks, email, or both)
 - Non-blocking async delivery with 10s timeout
 
 **Operations**
@@ -222,6 +223,12 @@ cronbase start --config cronbase.yaml    # load on startup
 | `CRONBASE_DB` | `./cronbase.db` | SQLite database path |
 | `CRONBASE_API_TOKEN` | *(none)* | Bearer token for API and dashboard authentication ([details](#security)) |
 | `CRONBASE_TIMEZONE` | *(UTC)* | IANA timezone for schedule interpretation (e.g. `America/New_York`, `Europe/London`). Cron fields are treated as wall-clock time in this timezone. |
+| `CRONBASE_SMTP_HOST` | *(none)* | SMTP server hostname (required to enable email alerts) |
+| `CRONBASE_SMTP_PORT` | `587` | SMTP server port |
+| `CRONBASE_SMTP_SECURE` | `false` | Set to `true` for TLS/SMTPS on connect (port 465) |
+| `CRONBASE_SMTP_FROM` | `cronbase@localhost` | Sender address for alert emails |
+| `CRONBASE_SMTP_USERNAME` | *(none)* | SMTP AUTH username (optional) |
+| `CRONBASE_SMTP_PASSWORD` | *(none)* | SMTP AUTH password (optional) |
 
 ### Cron expressions
 
@@ -495,7 +502,35 @@ Any other URL receives the raw JSON payload:
 }
 ```
 
+### Email (SMTP)
+
+cronbase includes a built-in SMTP client — no external mail libraries needed. Set the SMTP environment variables and add email recipients to your config:
+
+```bash
+export CRONBASE_SMTP_HOST="smtp.gmail.com"
+export CRONBASE_SMTP_PORT=465
+export CRONBASE_SMTP_SECURE=true
+export CRONBASE_SMTP_FROM="alerts@example.com"
+export CRONBASE_SMTP_USERNAME="alerts@example.com"
+export CRONBASE_SMTP_PASSWORD="app-password-here"
+
+cronbase start --config cronbase.yaml
+```
+
+```yaml
+jobs:
+  - name: backup-db
+    schedule: "0 2 * * *"
+    command: pg_dump mydb > /backups/db.sql
+    on_failure_email: ops@example.com
+    on_complete_email: ops@example.com, oncall@example.com
+```
+
+Emails include the job name, schedule, duration, exit code, and the last 500 characters of stderr/stdout.
+
 ### Config file alert shortcuts
+
+Webhooks:
 
 ```yaml
 jobs:
@@ -506,6 +541,20 @@ jobs:
     on_success: https://hooks.slack.com/...   # Alert on success only
     on_complete: https://hooks.slack.com/...  # Alert on every execution
 ```
+
+Email:
+
+```yaml
+jobs:
+  - name: my-job
+    schedule: "@hourly"
+    command: ./task.sh
+    on_failure_email: ops@example.com          # Email on failure + timeout
+    on_success_email: ops@example.com          # Email on success only
+    on_complete_email: ops@example.com         # Email on every execution
+```
+
+You can combine webhooks and email on the same job — both fire independently.
 
 ## Docker
 
@@ -616,7 +665,7 @@ If you bind cronbase to a non-localhost address (e.g., `--host 0.0.0.0`) without
 | Execution history | Yes | No | No | Limited | Yes | No |
 | stdout/stderr capture | Yes | Via mail | stdout/stderr | Docker logs | Limited | No |
 | Retry with backoff | Yes | No | No | No | Yes | No |
-| Webhook alerts | Yes | No | No | Slack only | Yes | Yes |
+| Webhook + email alerts | Yes | No | No | Slack only | Yes | Yes |
 | Config file | YAML/JSON | crontab | crontab | Docker labels | JSON | N/A |
 | Dependencies | None (Bun) | None | None (Go binary) | Docker | etcd/Consul | SaaS |
 | Self-hosted | Yes | Yes | Yes | Yes | Yes | Optional |
