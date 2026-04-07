@@ -40,4 +40,4 @@ jobs:
           echo "//registry.npmjs.org/:email=hello@paperkite.io" >> ~/.npmrc
 
       - name: Publish to npm
-        run: npm publish
+        run: npm publish --access public
