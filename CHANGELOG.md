@@ -4,6 +4,31 @@ All notable changes to cronbase will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.3.0] — 2026-04-07
+
+### Added
+
+- **SMTP email alerting** — built-in SMTP client for email notifications on job success, failure, or timeout. Supports Gmail, SES, Postmark, and any SMTP server. Per-job email configuration via config file or REST API. No external dependencies.
+- **`--demo` flag** — `cronbase start --demo` pre-loads 3 sample jobs (health-check, daily-backup, weekly-cleanup) when the database is empty, giving evaluators an immediate view of the dashboard in action
+- **Interactive `cronbase add` wizard** — running `add` without flags now launches a guided prompt for name, schedule, and command. Only activates on TTY (piped/scripted usage unchanged)
+- **`cronbase edit` subcommand** — modify a job's schedule, command, timeout, or other fields in-place without destroying execution history
+- **`cronbase show` subcommand** — inspect a single job's full configuration, next run time, and recent execution stats
+- **`cronbase logs` subcommand** — quickly view stdout/stderr from recent executions without opening the dashboard
+- **Timezone-aware scheduling** — `CRONBASE_TIMEZONE` env var and per-job `timezone` field for running jobs in any IANA timezone
+
+### Fixed
+
+- Validate timezone field on job create and update — invalid IANA timezone names are now rejected
+- Use `node:` protocol for readline import (Node.js/Bun compatibility)
+
+### Changed
+
+- Expanded CONTRIBUTING.md with contributor onboarding guidance (architecture overview, test patterns, code style)
+- Documented SMTP email alerting in README, alerting guide, and config reference
+- Added maintenance/pruning guide and prune CLI reference to docs site
+- Added FAQ & troubleshooting page to docs site
+- Updated dependencies: Biome 2.4.9 → 2.4.10, GitHub Actions (download-artifact v8, upload-pages-artifact v4, docker/build-push-action v7)
+
 ## [0.2.0] — 2026-03-25
 
 ### Added
@@ -63,5 +88,6 @@ First public release.
 - **Security** — API token auth, timing-safe comparison, SSRF protection for webhooks, CORS restriction, input validation
 - **Programmatic API** — `Scheduler` and `Store` exports for library usage
 
+[0.3.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.3.0
 [0.2.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.2.0
 [0.1.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.1.0

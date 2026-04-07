@@ -1,6 +1,6 @@
 {
 	"name": "cronbase",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Beautiful self-hosted cron job manager with web UI",
 	"type": "module",
 	"main": "src/index.ts",
