@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -33,9 +32,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          registry-url: https://registry.npmjs.org
+
+      - name: Configure npm auth
+        run: |
+          echo "//registry.npmjs.org/:_password=${{ secrets.NPM_PASSWORD }}" > ~/.npmrc
+          echo "//registry.npmjs.org/:username=paperkite-hq" >> ~/.npmrc
+          echo "//registry.npmjs.org/:email=hello@paperkite.io" >> ~/.npmrc
 
       - name: Publish to npm
-        run: npm publish --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish
