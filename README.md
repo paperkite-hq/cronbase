@@ -19,6 +19,7 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/paperkite-hq/cronbase/releases/latest"><img src="https://img.shields.io/github/v/release/paperkite-hq/cronbase" alt="Latest Release"></a>
   <a href="https://github.com/paperkite-hq/cronbase/actions/workflows/ci.yml"><img src="https://github.com/paperkite-hq/cronbase/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/endpoint?url=https://paperkite-hq.github.io/cronbase/coverage.json" alt="Coverage">
   <a href="https://github.com/paperkite-hq/cronbase/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License: AGPL-3.0"></a>
