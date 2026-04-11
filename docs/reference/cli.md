@@ -239,6 +239,45 @@ Last 24h:  23 successes, 1 failures
 Success:   95.8%
 ```
 
+## cronbase doctor
+
+Check the runtime environment and configuration. Validates that all prerequisites are in place before starting cronbase.
+
+```bash
+cronbase doctor [--config cronbase.yaml]
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--config` | — | Also validate a config file |
+| `--json` | — | Output structured JSON |
+
+Checks performed:
+
+- **Bun runtime** — detects the Bun version
+- **Database** — verifies the SQLite database can be opened and reports job count
+- **Port** — checks if the default port (7433) is available
+- **Timezone** — validates `CRONBASE_TIMEZONE` if set
+- **Authentication** — warns if `CRONBASE_API_TOKEN` is not configured
+- **SMTP** — reports SMTP configuration if email alerting is set up
+- **Config file** — validates the config file if `--config` is provided
+
+Exits with code `0` if no failures are found, `1` if any critical issues exist.
+
+```bash
+$ cronbase doctor
+cronbase v0.3.1 — environment check
+
+  ✓ Bun runtime: v1.2.0
+  ✓ Database: ./cronbase.db (5 jobs)
+  ✓ Port: 7433 is available
+  ✓ Timezone: America/New_York
+  ⚠ Authentication: no CRONBASE_API_TOKEN set — dashboard and API are unauthenticated
+  ✓ SMTP: smtp.gmail.com:465 (from: alerts@example.com)
+
+All checks passed (1 warning).
+```
+
 ## cronbase validate
 
 Validate a config file without making any database changes. Useful as a pre-deploy check in CI pipelines or before running `cronbase start --config`.
@@ -268,7 +307,7 @@ $ cronbase validate --path bad-config.yaml
 
 ### `--json`
 
-Output in JSON format instead of the default human-readable table. Supported by: `list`, `show`, `history`, `logs`, `stats`, `run`, `export`.
+Output in JSON format instead of the default human-readable table. Supported by: `list`, `show`, `history`, `logs`, `stats`, `run`, `export`, `doctor`.
 
 ```bash
 cronbase list --json

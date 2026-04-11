@@ -1688,6 +1688,76 @@ describe("runCommand (in-process)", () => {
 		expect(code).toBe(1);
 	});
 
+	describe("doctor", () => {
+		test("returns 0 with valid environment", async () => {
+			const db = freshDb();
+			const code = await runCommand("doctor", { db }, []);
+			expect(code).toBe(0);
+		});
+
+		test("shows Bun runtime, database, port, timezone, and auth checks", async () => {
+			const db = freshDb();
+			const { stdout } = await runCli(["doctor", "--db", db]);
+			expect(stdout).toContain("Bun runtime");
+			expect(stdout).toContain("Database");
+			expect(stdout).toContain("Port");
+			expect(stdout).toContain("Timezone");
+			expect(stdout).toContain("Authentication");
+			expect(stdout).toContain("environment check");
+		});
+
+		test("--json flag outputs structured JSON", async () => {
+			const db = freshDb();
+			const { stdout } = await runCli(["doctor", "--json", "--db", db]);
+			const parsed = JSON.parse(stdout);
+			expect(parsed.version).toBeDefined();
+			expect(Array.isArray(parsed.checks)).toBe(true);
+			expect(parsed.checks.length).toBeGreaterThanOrEqual(5);
+			for (const check of parsed.checks) {
+				expect(["ok", "warn", "fail"]).toContain(check.status);
+				expect(check.name).toBeDefined();
+				expect(check.detail).toBeDefined();
+			}
+		});
+
+		test("detects invalid timezone from environment", async () => {
+			const db = freshDb();
+			const { stdout } = await runCli(["doctor", "--db", db], {
+				CRONBASE_TIMEZONE: "Invalid/Nowhere",
+			});
+			expect(stdout).toContain("invalid IANA timezone");
+		});
+
+		test("reports valid timezone when CRONBASE_TIMEZONE is set", async () => {
+			const db = freshDb();
+			const { stdout } = await runCli(["doctor", "--db", db], {
+				CRONBASE_TIMEZONE: "America/New_York",
+			});
+			expect(stdout).toContain("America/New_York");
+		});
+
+		test("validates config file when --config is provided", async () => {
+			const db = freshDb();
+			const configDir = mkdtempSync(join(tmpdir(), "cronbase-doctor-cfg-"));
+			const configPath = join(configDir, "cronbase.yaml");
+			await Bun.write(
+				configPath,
+				'jobs:\n  - name: test\n    schedule: "* * * * *"\n    command: echo hi\n',
+			);
+			const { stdout } = await runCli(["doctor", "--db", db, "--config", configPath]);
+			expect(stdout).toContain("Config file");
+			expect(stdout).toContain("✓");
+			rmSync(configDir, { recursive: true });
+		});
+
+		test("reports invalid config file", async () => {
+			const db = freshDb();
+			const { stdout } = await runCli(["doctor", "--db", db, "--config", "/nonexistent/bad.yaml"]);
+			expect(stdout).toContain("Config file");
+			expect(stdout).toContain("✗");
+		});
+	});
+
 	describe("export round-trip fidelity", () => {
 		test("command with YAML special chars is properly quoted in export", async () => {
 			const dir = mkdtempSync(join(tmpdir(), "cronbase-export-rt-"));

@@ -15,6 +15,7 @@
  *   cronbase disable <name>     Disable a job
  *   cronbase stats              Show summary statistics
  *   cronbase logs <name>        Show output from recent executions
+ *   cronbase doctor             Check runtime environment
  */
 
 import { loadConfigFile, validateConfigFile } from "./config";
@@ -48,6 +49,7 @@ Usage:
   cronbase logs <name> [--limit 1]                      Show output from recent executions
   cronbase prune [--days 90]                            Prune old execution history
   cronbase validate [--path cronbase.yaml]              Validate a config file (no DB changes)
+  cronbase doctor                                        Check runtime environment and configuration
   cronbase import [--dry-run]                            Import jobs from system crontab
   cronbase export                                        Export jobs as YAML config
 
@@ -1119,6 +1121,140 @@ jobs:
 				`\n${errors.length} error${errors.length === 1 ? "" : "s"} found in ${configPath}`,
 			);
 			return 1;
+		}
+
+		case "doctor": {
+			const checks: Array<{ name: string; status: "ok" | "warn" | "fail"; detail: string }> = [];
+
+			// 1. Runtime
+			const bunVersion = typeof Bun !== "undefined" ? Bun.version : null;
+			if (bunVersion) {
+				checks.push({ name: "Bun runtime", status: "ok", detail: `v${bunVersion}` });
+			} else {
+				checks.push({
+					name: "Bun runtime",
+					status: "fail",
+					detail: "not detected — cronbase requires Bun",
+				});
+			}
+
+			// 2. Database
+			try {
+				const store = new Store(dbPath);
+				const jobCount = store.listJobs().length;
+				store.close();
+				checks.push({
+					name: "Database",
+					status: "ok",
+					detail: `${dbPath} (${jobCount} job${jobCount !== 1 ? "s" : ""})`,
+				});
+			} catch (err: unknown) {
+				const msg = err instanceof Error ? err.message : String(err);
+				checks.push({ name: "Database", status: "fail", detail: `cannot open ${dbPath}: ${msg}` });
+			}
+
+			// 3. Default port
+			try {
+				const port = Number(flags.port ?? 7433);
+				const testServer = Bun.serve({ port, hostname: "127.0.0.1", fetch: () => new Response() });
+				testServer.stop(true);
+				checks.push({ name: "Port", status: "ok", detail: `${port} is available` });
+			} catch {
+				const port = Number(flags.port ?? 7433);
+				checks.push({
+					name: "Port",
+					status: "warn",
+					detail: `${port} is in use (cronbase may already be running)`,
+				});
+			}
+
+			// 4. Timezone
+			const tz = process.env.CRONBASE_TIMEZONE;
+			if (tz) {
+				try {
+					Intl.DateTimeFormat("en-US", { timeZone: tz });
+					checks.push({ name: "Timezone", status: "ok", detail: tz });
+				} catch {
+					checks.push({ name: "Timezone", status: "fail", detail: `invalid IANA timezone: ${tz}` });
+				}
+			} else {
+				checks.push({ name: "Timezone", status: "ok", detail: "UTC (default)" });
+			}
+
+			// 5. API token
+			const token = process.env.CRONBASE_API_TOKEN;
+			if (token) {
+				checks.push({ name: "Authentication", status: "ok", detail: "API token configured" });
+			} else {
+				checks.push({
+					name: "Authentication",
+					status: "warn",
+					detail: "no CRONBASE_API_TOKEN set — dashboard and API are unauthenticated",
+				});
+			}
+
+			// 6. SMTP
+			const smtpHost = process.env.CRONBASE_SMTP_HOST;
+			if (smtpHost) {
+				const smtpPort = Number(process.env.CRONBASE_SMTP_PORT ?? "587");
+				const smtpFrom = process.env.CRONBASE_SMTP_FROM ?? "cronbase@localhost";
+				checks.push({
+					name: "SMTP",
+					status: "ok",
+					detail: `${smtpHost}:${smtpPort} (from: ${smtpFrom})`,
+				});
+			} else {
+				checks.push({
+					name: "SMTP",
+					status: "ok",
+					detail: "not configured (email alerts disabled)",
+				});
+			}
+
+			// 7. Config file
+			const configPath = flags.config;
+			if (configPath) {
+				try {
+					const errors = await validateConfigFile(configPath);
+					if (errors.length === 0) {
+						checks.push({ name: "Config file", status: "ok", detail: configPath });
+					} else {
+						checks.push({
+							name: "Config file",
+							status: "fail",
+							detail: `${configPath}: ${errors[0]}`,
+						});
+					}
+				} catch (err: unknown) {
+					const msg = err instanceof Error ? err.message : String(err);
+					checks.push({ name: "Config file", status: "fail", detail: `${configPath}: ${msg}` });
+				}
+			}
+
+			// Output
+			const jsonOutput = flags.json === "true";
+			const failures = checks.filter((c) => c.status === "fail").length;
+			const warnings = checks.filter((c) => c.status === "warn").length;
+			if (jsonOutput) {
+				console.log(JSON.stringify({ version: VERSION, checks }, null, 2));
+			} else {
+				console.log(`cronbase v${VERSION} — environment check\n`);
+				for (const check of checks) {
+					const icon = check.status === "ok" ? "✓" : check.status === "warn" ? "⚠" : "✗";
+					console.log(`  ${icon} ${check.name}: ${check.detail}`);
+				}
+				console.log("");
+				if (failures > 0) {
+					console.log(
+						`${failures} problem(s) found — fix the issues above before starting cronbase.`,
+					);
+				} else if (warnings > 0) {
+					console.log(`All checks passed (${warnings} warning${warnings !== 1 ? "s" : ""}).`);
+				} else {
+					console.log("All checks passed — cronbase is ready to run.");
+				}
+			}
+			return failures > 0 ? 1 : 0;
 		}
 
 		case "prune": {

@@ -277,6 +277,7 @@ cronbase enable <name>                              Enable a disabled job
 cronbase disable <name>                             Disable a job
 cronbase stats                                      Show summary statistics
 cronbase validate [--path cronbase.yaml]            Validate config file (no DB changes)
+cronbase doctor [--config cronbase.yaml]            Check runtime environment and config
 cronbase import [--dry-run]                         Import jobs from system crontab
 cronbase export                                     Export jobs as YAML config
 cronbase prune [--days 90]                          Prune old execution history
