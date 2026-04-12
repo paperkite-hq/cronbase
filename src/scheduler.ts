@@ -168,6 +168,10 @@ export class Scheduler {
 		if (this.ticking) return;
 		this.ticking = true;
 		try {
+			// Skip execution when paused (auto-resume is handled by isPaused)
+			const pauseState = this.store.isPaused();
+			if (pauseState.paused) return;
+
 			const dueJobs = this.store.getDueJobs();
 
 			for (const job of dueJobs) {

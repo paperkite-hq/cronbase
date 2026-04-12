@@ -200,6 +200,40 @@ Disable a job without deleting it. Disabled jobs don't execute on schedule but c
 cronbase disable <name>
 ```
 
+## cronbase pause
+
+Pause all scheduled job execution. Jobs will not run until resumed. Useful for maintenance windows.
+
+```bash
+cronbase pause [--until <datetime>]
+```
+
+| Flag | Required | Default | Description |
+|---|---|---|---|
+| `--until` | No | Indefinite | ISO 8601 datetime to auto-resume (e.g. `"2025-01-15T06:00:00"`) |
+
+**Examples:**
+
+```bash
+# Pause indefinitely
+cronbase pause
+
+# Pause until 6 AM
+cronbase pause --until "2025-01-15T06:00:00"
+```
+
+When `--until` is set, the scheduler automatically resumes at that time. Without it, use `cronbase resume` to resume manually.
+
+## cronbase resume
+
+Resume scheduled job execution after a pause.
+
+```bash
+cronbase resume
+```
+
+If the scheduler is not paused, this is a no-op.
+
 ## cronbase prune
 
 Delete execution history older than a given number of days.

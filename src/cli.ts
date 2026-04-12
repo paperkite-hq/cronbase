@@ -15,6 +15,8 @@
  *   cronbase disable <name>     Disable a job
  *   cronbase stats              Show summary statistics
  *   cronbase logs <name>        Show output from recent executions
+ *   cronbase pause              Pause all job execution
+ *   cronbase resume             Resume job execution
  *   cronbase doctor             Check runtime environment
  */
 
@@ -48,6 +50,8 @@ Usage:
   cronbase stats                                        Show summary statistics
   cronbase logs <name> [--limit 1]                      Show output from recent executions
   cronbase prune [--days 90]                            Prune old execution history
+  cronbase pause [--until "2025-01-15T06:00:00"]        Pause all scheduled execution
+  cronbase resume                                       Resume scheduled execution
   cronbase validate [--path cronbase.yaml]              Validate a config file (no DB changes)
   cronbase doctor                                        Check runtime environment and configuration
   cronbase import [--dry-run]                            Import jobs from system crontab
@@ -108,6 +112,7 @@ const VALUE_FLAGS = new Set([
 	"days",
 	"path",
 	"output",
+	"until",
 ]);
 
 export function parseArgs(args: string[]): {
@@ -1255,6 +1260,51 @@ jobs:
 				}
 			}
 			return failures > 0 ? 1 : 0;
+		}
+
+		case "pause": {
+			const store = new Store(dbPath);
+			try {
+				let until: Date | undefined;
+				if (flags.until) {
+					until = new Date(flags.until);
+					if (Number.isNaN(until.getTime())) {
+						console.error(
+							`Error: Invalid date "${flags.until}". Use ISO 8601 format (e.g. "2025-01-15T06:00:00").`,
+						);
+						return 1;
+					}
+					if (until.getTime() <= Date.now()) {
+						console.error("Error: --until must be in the future");
+						return 1;
+					}
+				}
+				store.setPaused(true, until);
+				if (until) {
+					console.log(`✓ Scheduler paused until ${formatDate(until.toISOString())}`);
+				} else {
+					console.log("✓ Scheduler paused (run 'cronbase resume' to resume)");
+				}
+				return 0;
+			} finally {
+				store.close();
+			}
+		}
+
+		case "resume": {
+			const store = new Store(dbPath);
+			try {
+				const state = store.isPaused();
+				if (!state.paused) {
+					console.log("Scheduler is not paused.");
+					return 0;
+				}
+				store.setPaused(false);
+				console.log("✓ Scheduler resumed");
+				return 0;
+			} finally {
+				store.close();
+			}
 		}
 
 		case "prune": {

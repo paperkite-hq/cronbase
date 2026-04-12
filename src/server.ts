@@ -75,7 +75,13 @@ export function createServer(opts: ServerOptions): Server<unknown> {
 			// Health check endpoint (unauthenticated — used by monitoring)
 			if (path === "/health" && req.method === "GET") {
 				const health = store.getHealthInfo();
-				return new Response(JSON.stringify(health), {
+				const pauseState = store.isPaused();
+				const healthWithPause = {
+					...health,
+					paused: pauseState.paused,
+					pausedUntil: pauseState.until?.toISOString() ?? null,
+				};
+				return new Response(JSON.stringify(healthWithPause), {
 					headers: { "Content-Type": "application/json", ...corsHeaders },
 				});
 			}

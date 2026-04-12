@@ -672,3 +672,60 @@ describe("health info", () => {
 		expect(VERSION).toBe(pkg.version);
 	});
 });
+
+describe("pause/resume", () => {
+	test("isPaused returns false by default", () => {
+		const state = store.isPaused();
+		expect(state.paused).toBe(false);
+		expect(state.until).toBeNull();
+	});
+
+	test("setPaused(true) pauses the scheduler", () => {
+		store.setPaused(true);
+		const state = store.isPaused();
+		expect(state.paused).toBe(true);
+		expect(state.until).toBeNull();
+	});
+
+	test("setPaused(true, until) pauses with expiry", () => {
+		const until = new Date(Date.now() + 3600000); // 1 hour from now
+		store.setPaused(true, until);
+		const state = store.isPaused();
+		expect(state.paused).toBe(true);
+		expect(state.until).not.toBeNull();
+		expect(state.until?.getTime()).toBeCloseTo(until.getTime(), -100);
+	});
+
+	test("setPaused(false) resumes the scheduler", () => {
+		store.setPaused(true);
+		expect(store.isPaused().paused).toBe(true);
+		store.setPaused(false);
+		expect(store.isPaused().paused).toBe(false);
+	});
+
+	test("auto-resumes when paused_until expires", () => {
+		const pastDate = new Date(Date.now() - 1000); // 1 second ago
+		store.setPaused(true, pastDate);
+		// isPaused should detect expiry and auto-resume
+		const state = store.isPaused();
+		expect(state.paused).toBe(false);
+		expect(state.until).toBeNull();
+	});
+
+	test("indefinite pause has no until", () => {
+		store.setPaused(true);
+		const state = store.isPaused();
+		expect(state.paused).toBe(true);
+		expect(state.until).toBeNull();
+	});
+
+	test("re-pausing clears previous until", () => {
+		const until = new Date(Date.now() + 3600000);
+		store.setPaused(true, until);
+		expect(store.isPaused().until).not.toBeNull();
+		// Pause again without until → indefinite
+		store.setPaused(true);
+		expect(store.isPaused().until).toBeNull();
+		expect(store.isPaused().paused).toBe(true);
+	});
+});

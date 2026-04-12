@@ -91,6 +91,7 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 - Non-blocking async delivery with 10s timeout
 
 **Operations**
+- Global pause/resume for maintenance windows (with optional auto-resume timer)
 - YAML or JSON config files for declarative job definitions
 - Docker image with health check endpoint
 - Graceful shutdown on SIGINT/SIGTERM
@@ -276,6 +277,8 @@ cronbase remove <name>                              Remove a job
 cronbase enable <name>                              Enable a disabled job
 cronbase disable <name>                             Disable a job
 cronbase stats                                      Show summary statistics
+cronbase pause [--until <datetime>]                  Pause all scheduled execution
+cronbase resume                                     Resume scheduled execution
 cronbase validate [--path cronbase.yaml]            Validate config file (no DB changes)
 cronbase doctor [--config cronbase.yaml]            Check runtime environment and config
 cronbase import [--dry-run]                         Import jobs from system crontab
@@ -452,6 +455,14 @@ DELETE /api/jobs/:id/alerts   Remove alert configuration
 ```
 GET /api/executions           List execution history (?jobId=N&limit=20)
 GET /api/executions/:id       Get execution detail (with stdout/stderr)
+```
+
+### Scheduler
+
+```
+GET  /api/scheduler/status    Check if the scheduler is paused
+POST /api/scheduler/pause     Pause all scheduled execution (body: {"until": "ISO8601"})
+POST /api/scheduler/resume    Resume scheduled execution
 ```
 
 ### Utilities

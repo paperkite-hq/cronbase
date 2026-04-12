@@ -285,6 +285,39 @@ export async function handleApi(
 			return json({ ok: true }, 200, corsHeaders);
 		}
 
+		// GET /api/scheduler/status — get pause state
+		if (path === "/api/scheduler/status" && req.method === "GET") {
+			const state = store.isPaused();
+			return json(
+				{ paused: state.paused, until: state.until?.toISOString() ?? null },
+				200,
+				corsHeaders,
+			);
+		}
+
+		// POST /api/scheduler/pause — pause the scheduler
+		if (path === "/api/scheduler/pause" && req.method === "POST") {
+			const body: { until?: string } =
+				req.headers.get("content-length") !== "0"
+					? await parseJsonBody<{ until?: string }>(req).catch(() => ({}))
+					: {};
+			let until: Date | undefined;
+			if (body.until) {
+				until = new Date(body.until);
+				if (Number.isNaN(until.getTime())) {
+					return json({ error: "Invalid date format for 'until'" }, 400, corsHeaders);
+				}
+			}
+			store.setPaused(true, until);
+			return json({ paused: true, until: until?.toISOString() ?? null }, 200, corsHeaders);
+		}
+
+		// POST /api/scheduler/resume — resume the scheduler
+		if (path === "/api/scheduler/resume" && req.method === "POST") {
+			store.setPaused(false);
+			return json({ paused: false }, 200, corsHeaders);
+		}
+
 		// GET /api/cron/describe?expr=...
 		if (path === "/api/cron/describe" && req.method === "GET") {
 			const url = new URL(req.url);

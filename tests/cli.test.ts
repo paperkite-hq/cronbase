@@ -1929,3 +1929,60 @@ describe("promptAdd", () => {
 		expect(result).toBeNull();
 	});
 });
+
+describe("pause/resume", () => {
+	const pauseDir = mkdtempSync(join(tmpdir(), "cronbase-pause-test-"));
+
+	test("pause command pauses the scheduler", async () => {
+		const dbPath = join(pauseDir, "pause-test.db");
+		const code = await runCommand("pause", { db: dbPath }, []);
+		expect(code).toBe(0);
+		// Verify paused state
+		const store = new Store(dbPath);
+		expect(store.isPaused().paused).toBe(true);
+		store.close();
+	});
+
+	test("resume command resumes the scheduler", async () => {
+		const dbPath = join(pauseDir, "resume-test.db");
+		// First pause
+		await runCommand("pause", { db: dbPath }, []);
+		// Then resume
+		const code = await runCommand("resume", { db: dbPath }, []);
+		expect(code).toBe(0);
+		const store = new Store(dbPath);
+		expect(store.isPaused().paused).toBe(false);
+		store.close();
+	});
+
+	test("resume when not paused succeeds gracefully", async () => {
+		const dbPath = join(pauseDir, "resume-noop.db");
+		const code = await runCommand("resume", { db: dbPath }, []);
+		expect(code).toBe(0);
+	});
+
+	test("pause with --until sets expiry", async () => {
+		const dbPath = join(pauseDir, "pause-until.db");
+		const future = new Date(Date.now() + 3600000).toISOString();
+		const code = await runCommand("pause", { db: dbPath, until: future }, []);
+		expect(code).toBe(0);
+		const store = new Store(dbPath);
+		const state = store.isPaused();
+		expect(state.paused).toBe(true);
+		expect(state.until).not.toBeNull();
+		store.close();
+	});
+
+	test("pause with invalid --until fails", async () => {
+		const dbPath = join(pauseDir, "pause-bad-until.db");
+		const code = await runCommand("pause", { db: dbPath, until: "not-a-date" }, []);
+		expect(code).toBe(1);
+	});
+
+	test("pause with past --until fails", async () => {
+		const dbPath = join(pauseDir, "pause-past.db");
+		const past = new Date(Date.now() - 3600000).toISOString();
+		const code = await runCommand("pause", { db: dbPath, until: past }, []);
+		expect(code).toBe(1);
+	});
+});

@@ -16,7 +16,9 @@ Returns scheduler status and basic metrics.
   "status": "ok",
   "totalJobs": 5,
   "enabledJobs": 4,
-  "dbSizeBytes": 45056
+  "dbSizeBytes": 45056,
+  "paused": false,
+  "pausedUntil": null
 }
 ```
 
@@ -155,6 +157,50 @@ Get a single execution with full stdout/stderr output.
   "stdout": "Backup completed successfully\n",
   "stderr": "",
   "attempt": 0
+}
+```
+
+## Scheduler
+
+### GET /api/scheduler/status
+
+Check if the scheduler is paused.
+
+**Response:**
+```json
+{
+  "paused": false,
+  "until": null
+}
+```
+
+### POST /api/scheduler/pause
+
+Pause all scheduled job execution. Optionally set an auto-resume time.
+
+**Request body (optional):**
+```json
+{
+  "until": "2025-01-15T06:00:00.000Z"
+}
+```
+
+**Response:**
+```json
+{
+  "paused": true,
+  "until": "2025-01-15T06:00:00.000Z"
+}
+```
+
+### POST /api/scheduler/resume
+
+Resume scheduled job execution.
+
+**Response:**
+```json
+{
+  "paused": false
 }
 ```
 

@@ -694,6 +694,63 @@ describe("PUT /api/jobs/:id schedule validation", () => {
 	});
 });
 
+describe("Scheduler pause API", () => {
+	test("GET /api/scheduler/status returns not paused by default", async () => {
+		const res = await fetch(`${base}/api/scheduler/status`);
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.paused).toBe(false);
+		expect(data.until).toBeNull();
+	});
+
+	test("POST /api/scheduler/pause pauses the scheduler", async () => {
+		const res = await fetch(`${base}/api/scheduler/pause`, {
+			method: "POST",
+			headers: { "Content-Length": "0" },
+		});
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.paused).toBe(true);
+
+		// Verify via status
+		const status = await (await fetch(`${base}/api/scheduler/status`)).json();
+		expect(status.paused).toBe(true);
+	});
+
+	test("POST /api/scheduler/resume resumes the scheduler", async () => {
+		const res = await fetch(`${base}/api/scheduler/resume`, { method: "POST" });
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.paused).toBe(false);
+
+		const status = await (await fetch(`${base}/api/scheduler/status`)).json();
+		expect(status.paused).toBe(false);
+	});
+
+	test("POST /api/scheduler/pause with until sets expiry", async () => {
+		const until = new Date(Date.now() + 3600000).toISOString();
+		const res = await fetch(`${base}/api/scheduler/pause`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ until }),
+		});
+		expect(res.status).toBe(200);
+		const data = await res.json();
+		expect(data.paused).toBe(true);
+		expect(data.until).toBe(until);
+
+		// Clean up
+		await fetch(`${base}/api/scheduler/resume`, { method: "POST" });
+	});
+
+	test("/health includes pause state", async () => {
+		const res = await fetch(`${base}/health`);
+		const data = await res.json();
+		expect(data).toHaveProperty("paused");
+		expect(data).toHaveProperty("pausedUntil");
+	});
+});
+
 describe("Internal error handling", () => {
 	test("does not leak internal error details", async () => {
 		// Send a request that will cause an internal error (invalid JSON that passes initial parse)

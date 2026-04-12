@@ -81,6 +81,11 @@ export class Store {
         job_id INTEGER PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
         config TEXT NOT NULL DEFAULT '{}'
       );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
 
 		// Add timezone column to existing databases (safe no-op on fresh installs).
@@ -470,6 +475,55 @@ export class Store {
 			enabledJobs: stats.enabledJobs,
 			dbSizeBytes,
 		};
+	}
+
+	/** Pause the scheduler. If `until` is provided, auto-resumes at that time. */
+	setPaused(paused: boolean, until?: Date): void {
+		if (paused) {
+			this.db
+				.query(
+					"INSERT INTO settings (key, value) VALUES ('scheduler_paused', 'true') ON CONFLICT(key) DO UPDATE SET value = 'true'",
+				)
+				.run();
+			if (until) {
+				this.db
+					.query(
+						"INSERT INTO settings (key, value) VALUES ('paused_until', $until) ON CONFLICT(key) DO UPDATE SET value = $until",
+					)
+					.run({ $until: until.toISOString() });
+			} else {
+				this.db.query("DELETE FROM settings WHERE key = 'paused_until'").run();
+			}
+		} else {
+			this.db.query("DELETE FROM settings WHERE key = 'scheduler_paused'").run();
+			this.db.query("DELETE FROM settings WHERE key = 'paused_until'").run();
+		}
+	}
+
+	/** Check if the scheduler is paused. Handles auto-resume when paused_until has expired. */
+	isPaused(): { paused: boolean; until: Date | null } {
+		const row = this.db
+			.query("SELECT value FROM settings WHERE key = 'scheduler_paused'")
+			.get() as { value: string } | null;
+		if (!row || row.value !== "true") {
+			return { paused: false, until: null };
+		}
+
+		const untilRow = this.db
+			.query("SELECT value FROM settings WHERE key = 'paused_until'")
+			.get() as { value: string } | null;
+
+		if (untilRow) {
+			const until = new Date(untilRow.value);
+			if (until.getTime() <= Date.now()) {
+				// Auto-resume: paused_until has expired
+				this.setPaused(false);
+				return { paused: false, until: null };
+			}
+			return { paused: true, until };
+		}
+
+		return { paused: true, until: null };
 	}
 
 	private _closed = false;
