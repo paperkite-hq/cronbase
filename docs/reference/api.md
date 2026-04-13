@@ -22,6 +22,65 @@ Returns scheduler status and basic metrics.
 }
 ```
 
+## Metrics
+
+### GET /metrics
+
+Prometheus exposition format metrics endpoint. Returns job counts, execution counters, duration summaries, scheduler state, and database size. **Unauthenticated** — safe for Prometheus scrapers.
+
+**Response:** `text/plain; version=0.0.4`
+
+```
+# HELP cronbase_info cronbase version information.
+# TYPE cronbase_info gauge
+cronbase_info{version="0.3.0"} 1
+
+# HELP cronbase_jobs_total Number of configured jobs by status.
+# TYPE cronbase_jobs_total gauge
+cronbase_jobs_total{status="enabled"} 12
+cronbase_jobs_total{status="disabled"} 3
+
+# HELP cronbase_executions_total Total number of job executions by status.
+# TYPE cronbase_executions_total counter
+cronbase_executions_total{status="success"} 4521
+cronbase_executions_total{status="failed"} 23
+cronbase_executions_total{status="timeout"} 2
+cronbase_executions_total{status="skipped"} 0
+
+# HELP cronbase_execution_duration_seconds Total execution duration in seconds (recent executions).
+# TYPE cronbase_execution_duration_seconds summary
+cronbase_execution_duration_seconds_count 1000
+cronbase_execution_duration_seconds_sum 8234.5
+
+# HELP cronbase_scheduler_paused Whether the scheduler is paused (1 = paused, 0 = running).
+# TYPE cronbase_scheduler_paused gauge
+cronbase_scheduler_paused 0
+
+# HELP cronbase_db_size_bytes Size of the SQLite database file in bytes.
+# TYPE cronbase_db_size_bytes gauge
+cronbase_db_size_bytes 245760
+```
+
+**Available metrics:**
+
+| Metric | Type | Description |
+|---|---|---|
+| `cronbase_info` | gauge | Always 1. Carries `version` label. |
+| `cronbase_jobs_total` | gauge | Number of jobs by `status` (enabled/disabled). |
+| `cronbase_executions_total` | counter | Cumulative execution count by `status` (success/failed/timeout/skipped). |
+| `cronbase_execution_duration_seconds` | summary | Execution duration `_count` and `_sum` for recent executions. |
+| `cronbase_scheduler_paused` | gauge | 1 if paused, 0 if running. |
+| `cronbase_db_size_bytes` | gauge | SQLite database file size. |
+
+**Prometheus scrape config:**
+
+```yaml
+scrape_configs:
+  - job_name: cronbase
+    static_configs:
+      - targets: ["localhost:7433"]
+```
+
 ## Jobs
 
 ### GET /api/jobs

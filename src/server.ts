@@ -9,6 +9,7 @@ import { Buffer } from "node:buffer";
 import crypto from "node:crypto";
 import type { Server } from "bun";
 import { getDashboardHtml } from "./dashboard";
+import { formatMetrics } from "./metrics";
 import { handleApi, json } from "./routes";
 import type { Store } from "./store";
 
@@ -83,6 +84,17 @@ export function createServer(opts: ServerOptions): Server<unknown> {
 				};
 				return new Response(JSON.stringify(healthWithPause), {
 					headers: { "Content-Type": "application/json", ...corsHeaders },
+				});
+			}
+
+			// Prometheus metrics endpoint (unauthenticated — used by monitoring scrapers)
+			if (path === "/metrics" && req.method === "GET") {
+				const body = formatMetrics(store);
+				return new Response(body, {
+					headers: {
+						"Content-Type": "text/plain; version=0.0.4; charset=utf-8",
+						...corsHeaders,
+					},
 				});
 			}
 

@@ -13,6 +13,7 @@
   <a href="#cli-reference">CLI</a> &bull;
   <a href="#api-reference">API</a> &bull;
   <a href="#alerting">Alerting</a> &bull;
+  <a href="#monitoring">Monitoring</a> &bull;
   <a href="#docker">Docker</a> &bull;
   <a href="#security">Security</a> &bull;
   <a href="#example-configurations">Examples</a>
@@ -66,6 +67,7 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 - **Battle-tested cron parser** — 5-field expressions, presets (`@daily`, `@hourly`), month/day names
 - **Full observability** — execution history, stdout/stderr capture, duration tracking
 - **Webhook + email alerting** — Slack, Discord, any HTTP endpoint, or SMTP email — no external dependencies
+- **Prometheus metrics** — `/metrics` endpoint for Grafana, AlertManager, and any Prometheus-compatible stack
 
 ## Features
 
@@ -89,6 +91,11 @@ Replace `crontab -e` with a modern web dashboard for defining, executing, and mo
 - SMTP email alerts — built-in SMTP client, no external dependencies
 - Per-job alert configuration (webhooks, email, or both)
 - Non-blocking async delivery with 10s timeout
+
+**Monitoring**
+- Prometheus-compatible `/metrics` endpoint — scrape with Prometheus, graph in Grafana
+- Job counts, execution counters, duration summaries, scheduler state, database size
+- Unauthenticated (safe for monitoring scrapers alongside `/health`)
 
 **Operations**
 - Global pause/resume for maintenance windows (with optional auto-resume timer)
@@ -430,6 +437,51 @@ GET /health
 
 Returns scheduler status, job counts, and database size.
 
+### Metrics
+
+```
+GET /metrics
+```
+
+Prometheus exposition format. Returns job counts, execution counters, duration summaries, scheduler state, and database size. Unauthenticated — safe for Prometheus scrapers.
+
+Example output:
+
+```
+# HELP cronbase_info cronbase version information.
+# TYPE cronbase_info gauge
+cronbase_info{version="0.3.0"} 1
+
+# HELP cronbase_jobs_total Number of configured jobs by status.
+# TYPE cronbase_jobs_total gauge
+cronbase_jobs_total{status="enabled"} 12
+cronbase_jobs_total{status="disabled"} 3
+
+# HELP cronbase_executions_total Total number of job executions by status.
+# TYPE cronbase_executions_total counter
+cronbase_executions_total{status="success"} 4521
+cronbase_executions_total{status="failed"} 23
+cronbase_executions_total{status="timeout"} 2
+cronbase_executions_total{status="skipped"} 0
+
+# HELP cronbase_scheduler_paused Whether the scheduler is paused (1 = paused, 0 = running).
+# TYPE cronbase_scheduler_paused gauge
+cronbase_scheduler_paused 0
+
+# HELP cronbase_db_size_bytes Size of the SQLite database file in bytes.
+# TYPE cronbase_db_size_bytes gauge
+cronbase_db_size_bytes 245760
+```
+
+Add to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: cronbase
+    static_configs:
+      - targets: ["localhost:7433"]
+```
+
 ### Jobs
 
 ```
@@ -569,6 +621,36 @@ jobs:
 
 You can combine webhooks and email on the same job — both fire independently.
 
+## Monitoring
+
+cronbase exposes a Prometheus-compatible `/metrics` endpoint for integration with Grafana, AlertManager, and any Prometheus-compatible monitoring stack.
+
+```bash
+curl http://localhost:7433/metrics
+```
+
+The endpoint is **unauthenticated** (like `/health`) — safe for Prometheus scrapers even when `CRONBASE_API_TOKEN` is set.
+
+**Exposed metrics:**
+
+| Metric | Type | Description |
+|---|---|---|
+| `cronbase_info` | gauge | Always 1, carries `version` label |
+| `cronbase_jobs_total` | gauge | Job count by status (enabled/disabled) |
+| `cronbase_executions_total` | counter | Cumulative executions by status (success/failed/timeout/skipped) |
+| `cronbase_execution_duration_seconds` | summary | Duration count and sum for recent executions |
+| `cronbase_scheduler_paused` | gauge | 1 if paused, 0 if running |
+| `cronbase_db_size_bytes` | gauge | SQLite database file size |
+
+**Prometheus scrape config:**
+
+```yaml
+scrape_configs:
+  - job_name: cronbase
+    static_configs:
+      - targets: ["localhost:7433"]
+```
+
 ## Docker
 
 ### Pre-built image
@@ -679,6 +761,7 @@ If you bind cronbase to a non-localhost address (e.g., `--host 0.0.0.0`) without
 | stdout/stderr capture | Yes | Via mail | stdout/stderr | Docker logs | Limited | No |
 | Retry with backoff | Yes | No | No | No | Yes | No |
 | Webhook + email alerts | Yes | No | No | Slack only | Yes | Yes |
+| Prometheus metrics | Yes | No | No | No | Yes | No |
 | Config file | YAML/JSON | crontab | crontab | Docker labels | JSON | N/A |
 | Dependencies | None (Bun) | None | None (Go binary) | Docker | etcd/Consul | SaaS |
 | Self-hosted | Yes | Yes | Yes | Yes | Yes | Optional |

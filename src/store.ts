@@ -477,6 +477,35 @@ export class Store {
 		};
 	}
 
+	/** Get cumulative execution counts grouped by status — used for Prometheus metrics. */
+	getExecutionCountsByStatus(): Record<string, number> {
+		type Row = { status: string; c: number };
+		const rows = this.db
+			.query("SELECT status, COUNT(*) as c FROM executions GROUP BY status")
+			.all() as Row[];
+		const counts: Record<string, number> = {
+			success: 0,
+			failed: 0,
+			timeout: 0,
+			skipped: 0,
+		};
+		for (const row of rows) {
+			counts[row.status] = Number(row.c);
+		}
+		return counts;
+	}
+
+	/** Get average execution duration in seconds for recent executions (last 1000). */
+	getRecentDurationStats(): { count: number; sum: number } {
+		type Row = { cnt: number; total: number };
+		const row = this.db
+			.query(
+				"SELECT COUNT(*) as cnt, COALESCE(SUM(duration_ms), 0) as total FROM (SELECT duration_ms FROM executions WHERE duration_ms IS NOT NULL ORDER BY started_at DESC LIMIT 1000)",
+			)
+			.get() as Row;
+		return { count: Number(row.cnt), sum: Number(row.total) / 1000 };
+	}
+
 	/** Pause the scheduler. If `until` is provided, auto-resumes at that time. */
 	setPaused(paused: boolean, until?: Date): void {
 		if (paused) {

@@ -73,6 +73,13 @@ describe("API Token Authentication", () => {
 		expect(data.status).toBe("ok");
 	});
 
+	test("metrics endpoint remains unauthenticated", async () => {
+		const res = await fetch(`${base}/metrics`);
+		expect(res.status).toBe(200);
+		const body = await res.text();
+		expect(body).toContain("cronbase_info");
+	});
+
 	test("dashboard requires token via query param when apiToken is set", async () => {
 		// Without token — 401
 		const res1 = await fetch(`${base}/`);
