@@ -4,6 +4,19 @@ All notable changes to cronbase will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.4.0] — 2026-04-14
+
+### Added
+
+- **Prometheus `/metrics` endpoint** — Prometheus-compatible metrics exposition for integration with Grafana, AlertManager, and any Prometheus-compatible stack. Exposes job counts, execution counters, duration summaries, scheduler state, and database size. Unauthenticated (like `/health`) for safe scraping.
+- **Global pause/resume** — `cronbase pause [--until <datetime>]` and `cronbase resume` for maintenance windows. Auto-resume timer, scheduler tick guard, REST API endpoints (`/api/scheduler/{status,pause,resume}`), pause state reflected in `/health`.
+- **`cronbase doctor`** — diagnostic command that checks runtime environment (Bun version, port availability, timezone validity, database accessibility, config file parsing) and reports issues with actionable suggestions. Supports `--json` output.
+
+### Fixed
+
+- npm publish workflow: added `--access public` flag for scoped package first-publish
+- npm publish workflow: switched to legacy auth for compatibility
+
 ## [0.3.0] — 2026-04-07
 
 ### Added
@@ -88,6 +101,7 @@ First public release.
 - **Security** — API token auth, timing-safe comparison, SSRF protection for webhooks, CORS restriction, input validation
 - **Programmatic API** — `Scheduler` and `Store` exports for library usage
 
+[0.4.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.4.0
 [0.3.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.3.0
 [0.2.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.2.0
 [0.1.0]: https://github.com/paperkite-hq/cronbase/releases/tag/v0.1.0

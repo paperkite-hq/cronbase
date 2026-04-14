@@ -16,7 +16,8 @@
   <a href="#monitoring">Monitoring</a> &bull;
   <a href="#docker">Docker</a> &bull;
   <a href="#security">Security</a> &bull;
-  <a href="#example-configurations">Examples</a>
+  <a href="#example-configurations">Examples</a> &bull;
+  <a href="CHANGELOG.md">Changelog</a>
 </p>
 
 <p align="center">
