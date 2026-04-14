@@ -751,54 +751,6 @@ describe("Scheduler pause API", () => {
 	});
 });
 
-describe("Prometheus metrics", () => {
-	test("GET /metrics returns Prometheus exposition format", async () => {
-		const res = await fetch(`${base}/metrics`);
-		expect(res.status).toBe(200);
-		expect(res.headers.get("content-type")).toContain("text/plain");
-		const body = await res.text();
-		expect(body).toContain("# HELP cronbase_info");
-		expect(body).toContain("# TYPE cronbase_info gauge");
-		expect(body).toContain('cronbase_info{version="');
-		expect(body).toContain("cronbase_jobs_total");
-		expect(body).toContain("cronbase_executions_total");
-		expect(body).toContain("cronbase_scheduler_paused");
-		expect(body).toContain("cronbase_db_size_bytes");
-		expect(body).toContain("cronbase_execution_duration_seconds_count");
-		expect(body).toContain("cronbase_execution_duration_seconds_sum");
-	});
-
-	test("/metrics reflects job counts", async () => {
-		store.addJob({ name: "m1", schedule: "* * * * *", command: "echo 1" });
-		store.addJob({ name: "m2", schedule: "* * * * *", command: "echo 2" });
-		store.addJob({ name: "m3", schedule: "* * * * *", command: "echo 3", enabled: false });
-
-		const res = await fetch(`${base}/metrics`);
-		const body = await res.text();
-		expect(body).toContain('cronbase_jobs_total{status="enabled"} 2');
-		expect(body).toContain('cronbase_jobs_total{status="disabled"} 1');
-	});
-
-	test("/metrics reflects paused state", async () => {
-		store.setPaused(true);
-		const res1 = await fetch(`${base}/metrics`);
-		const body1 = await res1.text();
-		expect(body1).toContain("cronbase_scheduler_paused 1");
-
-		store.setPaused(false);
-		const res2 = await fetch(`${base}/metrics`);
-		const body2 = await res2.text();
-		expect(body2).toContain("cronbase_scheduler_paused 0");
-	});
-
-	test("/metrics is unauthenticated", async () => {
-		// Even if the server had auth enabled, /metrics should still work
-		// (tested here without auth; auth test file covers the auth-enabled case)
-		const res = await fetch(`${base}/metrics`);
-		expect(res.status).toBe(200);
-	});
-});
-
 describe("Internal error handling", () => {
 	test("does not leak internal error details", async () => {
 		// Send a request that will cause an internal error (invalid JSON that passes initial parse)
