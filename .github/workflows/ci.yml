@@ -54,7 +54,7 @@ jobs:
 
       - name: Upload coverage badge data
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-badge
           path: /tmp/coverage.json
