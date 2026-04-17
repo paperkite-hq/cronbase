@@ -11,7 +11,7 @@ Choosing a cron job tool depends on your environment, scale, and what you need b
 | Execution history | Yes | No | No | Limited | Yes | No |
 | stdout/stderr capture | Yes | Via mail | stdout/stderr | Docker logs | Limited | No |
 | Retry with backoff | Yes | No | No | No | Yes | No |
-| Webhook alerts | Yes | No | No | Slack only | Yes | Yes |
+| Webhook + email alerts | Yes | No | No | Slack only | Yes | Yes |
 | Config file | YAML/JSON | crontab | crontab | Docker labels | JSON | N/A |
 | Dependencies | None (Bun) | None | None (Go binary) | Docker | etcd/Consul | SaaS |
 | Self-hosted | Yes | Yes | Yes | Yes | Yes | Optional |
