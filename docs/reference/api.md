@@ -33,7 +33,7 @@ Prometheus exposition format metrics endpoint. Returns job counts, execution cou
 ```
 # HELP cronbase_info cronbase version information.
 # TYPE cronbase_info gauge
-cronbase_info{version="0.3.0"} 1
+cronbase_info{version="0.4.0"} 1
 
 # HELP cronbase_jobs_total Number of configured jobs by status.
 # TYPE cronbase_jobs_total gauge

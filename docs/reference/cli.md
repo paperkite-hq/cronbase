@@ -300,7 +300,7 @@ Exits with code `0` if no failures are found, `1` if any critical issues exist.
 
 ```bash
 $ cronbase doctor
-cronbase v0.3.1 — environment check
+cronbase v0.4.0 — environment check
 
   ✓ Bun runtime: v1.2.0
   ✓ Database: ./cronbase.db (5 jobs)
