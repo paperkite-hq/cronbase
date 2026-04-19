@@ -52,11 +52,15 @@ If you prefer running directly with [Bun](https://bun.sh/) (v1.0 or later):
 
 ```bash
 git clone https://github.com/paperkite-hq/cronbase.git
-cd cronbase && bun install
+cd cronbase && bun install && bun link
 
 cronbase add --name "hello" --schedule "*/5 * * * *" --command "echo Hello!"
 cronbase start   # → http://localhost:7433
 ```
+
+`bun link` makes the `cronbase` executable available on your PATH. If you'd
+rather not link globally, invoke the CLI as `bun run src/cli.ts <command>`
+from the repo root.
 
 ## Explore the dashboard
 

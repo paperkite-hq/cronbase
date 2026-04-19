@@ -140,11 +140,15 @@ docker compose up -d
 
 ```bash
 git clone https://github.com/paperkite-hq/cronbase.git
-cd cronbase && bun install
+cd cronbase && bun install && bun link
 
 cronbase add --name "hello" --schedule "*/5 * * * *" --command "echo Hello!"
 cronbase start   # → http://localhost:7433
 ```
+
+`bun link` places the `cronbase` executable on your PATH. If you'd rather not
+link globally, invoke the CLI as `bun run src/cli.ts <command>` from the repo
+root.
 
 ## Installation
 
@@ -171,7 +175,11 @@ docker compose up -d
 git clone https://github.com/paperkite-hq/cronbase.git
 cd cronbase
 bun install
+bun link   # makes `cronbase` available on your PATH
 ```
+
+If you skip `bun link`, run CLI commands as `bun run src/cli.ts <command>`
+from the repo root instead.
 
 ## Configuration
 
