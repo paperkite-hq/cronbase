@@ -2,6 +2,8 @@
 
 cronbase can be used as a library in your Bun/TypeScript projects.
 
+> **Note:** An installable npm package is not yet available. The `import ... from "cronbase"` paths below describe the published package; until it lands, clone the repo and import from the local source (`import { Scheduler } from "./path/to/cronbase/src"`), or use cronbase via Docker or the CLI.
+
 ## Scheduler
 
 The main entry point for running cronbase programmatically.

@@ -777,23 +777,9 @@ If you bind cronbase to a non-localhost address (e.g., `--host 0.0.0.0`) without
 
 ## Programmatic API
 
-Use cronbase as a library in your TypeScript/Bun projects:
+cronbase can also be embedded as a library in your own Bun/TypeScript projects — `Scheduler`, `Store`, the cron parser, validators, and types are all exported. The library mode is useful if you want to run the dashboard and scheduler in-process alongside your own app rather than as a separate service.
 
-```typescript
-import { Scheduler, Store } from "cronbase";
-
-const scheduler = new Scheduler({ dbPath: "./my-jobs.db", port: 7433 });
-
-scheduler.getStore().addJob({
-  name: "backup",
-  schedule: "@daily",
-  command: "pg_dump mydb > /backups/$(date +%Y%m%d).sql",
-  timeout: 300,
-  retry: { maxAttempts: 2, baseDelay: 60 },
-});
-
-scheduler.start();
-```
+The full TypeScript API is documented at **[docs/reference/typescript.md](https://paperkite-hq.github.io/cronbase/reference/typescript)**. Note that an installable package on npm is not yet available — for now, use cronbase via Docker or from source. Once the npm release lands, `bun add cronbase` (or `npm install cronbase`) will work as documented.
 
 ## Example Configurations
 
