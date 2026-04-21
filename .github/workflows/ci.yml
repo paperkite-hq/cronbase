@@ -97,3 +97,78 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
+
+  quickstart:
+    name: Quick Start smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies (README Quick Start step 1)
+        run: bun install
+
+      - name: Link CLI on PATH (README Quick Start step 2)
+        run: bun link
+
+      - name: Verify cronbase is on PATH and prints a version
+        run: |
+          which cronbase
+          VERSION=$(cronbase --version)
+          echo "Got: $VERSION"
+          # Expect "cronbase v<semver>" matching package.json
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          case "$VERSION" in
+            *"v${PKG_VERSION}"*) echo "Version string matches package.json (${PKG_VERSION})" ;;
+            *) echo "::error::cronbase --version output '$VERSION' does not contain package.json version v${PKG_VERSION}"; exit 1 ;;
+          esac
+
+      - name: Verify --help works
+        run: cronbase --help
+
+      - name: Run cronbase doctor
+        run: cronbase doctor
+
+      - name: Validate every example config
+        run: |
+          for f in examples/*.yaml; do
+            echo "--- validating $f ---"
+            cronbase validate --path "$f"
+          done
+
+      - name: CLI round-trip — add, list, show, remove
+        run: |
+          export CRONBASE_DB="$RUNNER_TEMP/smoke.db"
+          cronbase add --name smoke-test --schedule "*/5 * * * *" --command "echo hi"
+          cronbase list
+          cronbase show smoke-test
+          cronbase remove smoke-test
+          echo "CLI round-trip OK"
+
+      - name: Start server in background and probe endpoints
+        run: |
+          export CRONBASE_DB="$RUNNER_TEMP/server-smoke.db"
+          cronbase start --port 7433 &
+          SERVER_PID=$!
+          echo "Started server (pid $SERVER_PID), waiting for readiness..."
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:7433/health >/dev/null; then
+              echo "Server ready after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          echo "--- GET /health ---"
+          curl -sf http://127.0.0.1:7433/health
+          echo
+          echo "--- GET /metrics (first 20 lines) ---"
+          curl -sf http://127.0.0.1:7433/metrics | head -20
+          echo "--- GET /api/jobs ---"
+          curl -sf http://127.0.0.1:7433/api/jobs
+          echo
+          kill "$SERVER_PID"
+          wait "$SERVER_PID" 2>/dev/null || true
+          echo "Server stopped cleanly"
